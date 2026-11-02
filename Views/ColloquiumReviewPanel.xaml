@@ -1,0 +1,256 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- «Проверка достоверности · Лист согласования правок» (Коллоквиум): сводка проверки сцены внешнего генератора (проверки,
+     устранённые дефекты, K_исп и смета каркаса до/после), карточки правок локального аудитора с отметками «Было → Стало»,
+     ΔK_исп, Δсметы и пунктом норм; клик по карточке подсвечивает элемент во вьюпорте. -->
+<UserControl
+    x:Class="AIArchitectStudio.Views.ColloquiumReviewPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AIArchitectStudio"
+    xmlns:vm="using:AIArchitectStudio.ViewModels">
+
+    <UserControl.Resources>
+        <Style x:Key="ReviewTileStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource TrackBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="9,7,9,8" />
+        </Style>
+        <Style x:Key="ReviewTileLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style x:Key="ReviewTileValueStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Margin" Value="0,1,0,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <Border Style="{StaticResource IslandStyle}" Padding="12,10,12,12" UseLayoutRounding="True">
+        <Grid RowSpacing="9">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Шапка -->
+            <Grid ColumnSpacing="9">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border Width="30" Height="30" CornerRadius="15" Background="{StaticResource AccentSoftBrush}" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE83D;" FontSize="13" Foreground="{StaticResource AccentBrush}" />
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                    <TextBlock FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextPrimaryBrush}"
+                               Text="{x:Bind L.T('ReviewTitle', L.Language), Mode=OneWay}" />
+                    <TextBlock FontSize="10" FontFamily="{StaticResource MonoFont}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextSecondaryBrush}"
+                               Text="{x:Bind ViewModel.ReviewSubtitle, Mode=OneWay}" />
+                </StackPanel>
+                <Button Grid.Column="2" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.KeepGeneratorVariantCommand}"
+                        ToolTipService.ToolTip="{x:Bind L.T('ReviewKeep', L.Language), Mode=OneWay}">
+                    <FontIcon Glyph="&#xE711;" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                </Button>
+            </Grid>
+
+            <!-- Сводка: проверки, устранённые дефекты, K_исп, смета -->
+            <Grid Grid.Row="1" ColumnSpacing="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="1.25*" />
+                    <ColumnDefinition Width="1.25*" />
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource ReviewTileStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource ReviewTileLabelStyle}" Text="{x:Bind L.T('ReviewChecks', L.Language), Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource ReviewTileValueStyle}" Text="{x:Bind ViewModel.ReviewChecksText, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource ReviewTileLabelStyle}" FontSize="9" TextWrapping="Wrap" MaxLines="2" Text="{x:Bind ViewModel.ReviewChecksDetail, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource ReviewTileStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource ReviewTileLabelStyle}" Text="{x:Bind L.T('ReviewFixed', L.Language), Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource ReviewTileValueStyle}" Text="{x:Bind ViewModel.ReviewFixedText, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource ReviewTileLabelStyle}" FontSize="9" TextWrapping="Wrap" MaxLines="2" Text="{x:Bind L.T('ReviewFixedDetail', L.Language), Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource ReviewTileStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource ReviewTileLabelStyle}" Text="{x:Bind L.T('ReviewK', L.Language), Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource ReviewTileValueStyle}" Foreground="{x:Bind local:XamlHelpers.HexBrush(ViewModel.ReviewKColorHex), Mode=OneWay}"
+                                   Text="{x:Bind ViewModel.ReviewKText, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource ReviewTileLabelStyle}" FontSize="9" TextWrapping="Wrap" MaxLines="2" Text="{x:Bind L.T('ReviewKDetail', L.Language), Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="3" Style="{StaticResource ReviewTileStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource ReviewTileLabelStyle}" Text="{x:Bind L.T('ReviewCost', L.Language), Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource ReviewTileValueStyle}" Text="{x:Bind ViewModel.ReviewCostText, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource ReviewTileLabelStyle}" FontSize="9" TextWrapping="Wrap" MaxLines="2" Text="{x:Bind ViewModel.ReviewCostDetail, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Подзаголовок списка -->
+            <Grid Grid.Row="2" ColumnSpacing="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Style="{StaticResource SectionHeaderStyle}" Margin="2,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           Text="{x:Bind ViewModel.ReviewUnresolvedText, Mode=OneWay}" />
+                <Button Grid.Column="1" Style="{StaticResource PillChipStyle}" Height="22" Padding="9,0" FontSize="11" Command="{x:Bind ViewModel.SelectAllReviewFixesCommand}"
+                        Content="{x:Bind L.T('ReviewSelectAll', L.Language), Mode=OneWay}" />
+            </Grid>
+
+            <!-- Карточки правок -->
+            <ScrollViewer Grid.Row="3" MaxHeight="430" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="-2,0,-6,0" Padding="2,0,6,0">
+                <ItemsControl ItemsSource="{x:Bind ViewModel.ReviewFixes}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="7" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ReviewFixRow">
+                            <Border CornerRadius="11" Padding="9,8,10,9" Background="{StaticResource TrackBrush}" BorderBrush="{StaticResource StudioBorderBrush}" BorderThickness="1"
+                                    Tag="{x:Bind}" Tapped="OnFixTapped">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox MinWidth="0" Width="22" Padding="0" VerticalAlignment="Top" Margin="0,-2,0,0" IsChecked="{x:Bind IsAccepted, Mode=TwoWay}" />
+                                    <StackPanel Grid.Column="1" Spacing="4">
+                                        <!-- Роль аудитора и код замечания -->
+                                        <Grid ColumnSpacing="6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border CornerRadius="9" Padding="7,2,8,2" Background="{x:Bind local:XamlHelpers.HexSoftBrush(RoleColorHex)}">
+                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                    <FontIcon Glyph="{x:Bind RoleGlyph}" FontSize="10" Foreground="{x:Bind local:XamlHelpers.HexBrush(RoleColorHex)}" />
+                                                    <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{x:Bind local:XamlHelpers.HexBrush(RoleColorHex)}" Text="{x:Bind RoleTitle}" />
+                                                </StackPanel>
+                                            </Border>
+                                            <Button Grid.Column="2" Style="{StaticResource IconButtonStyle}" Height="20" MinWidth="20" Padding="4,0" Tag="{x:Bind}" Click="OnFocusClick"
+                                                    ToolTipService.ToolTip="{x:Bind local:XamlHelpers.Text('ReviewFocusTip')}">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <TextBlock FontSize="9" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind Code}" VerticalAlignment="Center" />
+                                                    <FontIcon Glyph="&#xE71E;" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                        <!-- Элемент -->
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock FontSize="12" FontWeight="SemiBold" MaxWidth="300" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ElementName}" />
+                                            <Border CornerRadius="6" Padding="6,0" Background="{StaticResource HoverBrush}" VerticalAlignment="Center">
+                                                <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind Category}" />
+                                            </Border>
+                                        </StackPanel>
+                                        <!-- Дефект и правка -->
+                                        <Grid ColumnSpacing="6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon Glyph="{x:Bind SeverityGlyph}" FontSize="10" Margin="0,2,0,0" VerticalAlignment="Top" Foreground="{x:Bind local:XamlHelpers.HexBrush(SeverityColorHex)}" />
+                                            <TextBlock Grid.Column="1" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind Defect}" />
+                                        </Grid>
+                                        <Grid ColumnSpacing="6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon Glyph="&#xE73E;" FontSize="10" Margin="0,2,0,0" VerticalAlignment="Top" Foreground="#30D158" />
+                                            <TextBlock Grid.Column="1" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind Action}" />
+                                        </Grid>
+                                        <!-- Было → Стало -->
+                                        <Border CornerRadius="8" Padding="8,5,8,6" Background="{StaticResource HoverBrush}">
+                                            <ItemsControl ItemsSource="{x:Bind Changes}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:ReviewChangeRow">
+                                                        <Grid ColumnSpacing="6" Padding="0,1">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="128" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock FontSize="10" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind Parameter}" />
+                                                            <TextBlock Grid.Column="1" FontSize="10" FontFamily="{StaticResource MonoFont}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind Before}" />
+                                                            <FontIcon Grid.Column="2" Glyph="&#xE72A;" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                            <TextBlock Grid.Column="3" FontSize="10" FontWeight="SemiBold" FontFamily="{StaticResource MonoFont}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind After}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Border>
+                                        <!-- ΔK_исп, Δсметы, пункт норм -->
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <Border CornerRadius="7" Padding="7,1" Background="{x:Bind local:XamlHelpers.HexSoftBrush(KColorHex)}">
+                                                <TextBlock FontSize="10" FontFamily="{StaticResource MonoFont}" Foreground="{x:Bind local:XamlHelpers.HexBrush(KColorHex)}" Text="{x:Bind KText}" />
+                                            </Border>
+                                            <Border CornerRadius="7" Padding="7,1" Background="{StaticResource HoverBrush}">
+                                                <TextBlock FontSize="10" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind CostText}" />
+                                            </Border>
+                                            <TextBlock FontSize="10" VerticalAlignment="Center" MaxWidth="176" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind Norm}"
+                                                       ToolTipService.ToolTip="{x:Bind Norm}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Итог отметок и решение -->
+            <StackPanel Grid.Row="4" Spacing="8">
+                <TextBlock FontSize="10" FontFamily="{StaticResource MonoFont}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.ReviewFooterText, Mode=OneWay}" />
+                <Grid ColumnSpacing="6" RowSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Button Grid.ColumnSpan="2" Style="{StaticResource PanelButtonStyle}" Background="{StaticResource AccentBrush}" Foreground="{StaticResource OnAccentBrush}" Height="32"
+                            Command="{x:Bind ViewModel.AcceptReviewFixesCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <FontIcon Glyph="&#xE73E;" FontSize="12" />
+                            <TextBlock FontWeight="SemiBold" Text="{x:Bind L.T('ReviewAccept', L.Language), Mode=OneWay}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Row="1" Style="{StaticResource PanelButtonStyle}" Height="30" Command="{x:Bind ViewModel.KeepGeneratorVariantCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE8FB;" FontSize="11" />
+                            <TextBlock TextTrimming="CharacterEllipsis" Text="{x:Bind L.T('ReviewKeep', L.Language), Mode=OneWay}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Row="1" Grid.Column="1" Style="{StaticResource PanelButtonStyle}" Height="30" Padding="10,0" Command="{x:Bind ViewModel.RevertGenerationCommand}"
+                            ToolTipService.ToolTip="{x:Bind L.T('ReviewRevertTip', L.Language), Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE7A7;" FontSize="11" Foreground="#FF453A" />
+                            <TextBlock Foreground="#FF453A" Text="{x:Bind L.T('ReviewRevert', L.Language), Mode=OneWay}" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

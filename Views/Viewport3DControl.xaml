@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="AIArchitectStudio.Views.Viewport3DControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid x:Name="RootLayer">
+        <!-- Viewport3DX создаётся программно по событию Loaded (защита от 0xc000027b) -->
+        <Grid x:Name="HostGrid" Background="{StaticResource ViewportBackgroundBrush}" />
+
+        <!-- Оверлеи у курсора: живая линейка Shapr3D (LiveDimensionHud) и бейдж магнитной привязки OSnap.
+             Не перехватывают указатель — ввод размера идёт с клавиатуры. -->
+        <Canvas x:Name="OverlayCanvas" IsHitTestVisible="False" UseLayoutRounding="True">
+            <Border x:Name="SnapBadge" Visibility="Collapsed" Style="{StaticResource IslandStyle}" CornerRadius="9" Padding="7,3,9,4" UseLayoutRounding="True">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Ellipse x:Name="SnapDot" Width="6" Height="6" VerticalAlignment="Center" Fill="#FF9F0A" />
+                    <TextBlock x:Name="SnapText" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="HudBorder" Visibility="Collapsed" Style="{StaticResource IslandStyle}" CornerRadius="10" Padding="10,5,12,6" UseLayoutRounding="True">
+                <StackPanel Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon x:Name="HudGlyph" Glyph="&#xED5E;" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock x:Name="HudLabel" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <Border x:Name="HudValueBox" CornerRadius="4" Padding="0" VerticalAlignment="Center">
+                            <TextBlock x:Name="HudValue" FontSize="13" FontWeight="SemiBold" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource TextPrimaryBrush}" />
+                        </Border>
+                        <TextBlock x:Name="HudDelta" FontSize="12" FontFamily="{StaticResource MonoFont}" VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}" />
+                    </StackPanel>
+                    <TextBlock x:Name="HudHint" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
+                </StackPanel>
+            </Border>
+        </Canvas>
+
+        <!-- Капсула 3D-рулетки (клавиша M): длина, проекции ΔX/ΔY/ΔZ, наклон; после фиксации — «Закрепить размер на чертеже».
+             Canvas без фона пропускает указатель во вьюпорт, нажимаются только кнопки капсулы. -->
+        <Canvas x:Name="MeasureCanvas" UseLayoutRounding="True">
+            <Border x:Name="MeasureCapsule" Visibility="Collapsed" Style="{StaticResource IslandStyle}" CornerRadius="12" Padding="12,8,12,10" UseLayoutRounding="True">
+                <StackPanel Spacing="3">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <FontIcon x:Name="MeasureGlyph" Glyph="&#xED5E;" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock x:Name="MeasureTitle" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" />
+                    </StackPanel>
+                    <TextBlock x:Name="MeasureLength" FontSize="15" FontWeight="SemiBold" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource TextPrimaryBrush}" />
+                    <TextBlock x:Name="MeasureProjections" FontSize="11" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <TextBlock x:Name="MeasureSlope" FontSize="11" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource AccentBrush}" />
+                    <StackPanel x:Name="MeasureActions" Orientation="Horizontal" Spacing="6" Margin="0,5,0,0">
+                        <Button x:Name="MeasurePinButton" Style="{StaticResource PillChipStyle}" Background="{StaticResource AccentBrush}" Foreground="{StaticResource OnAccentBrush}"
+                                Click="OnMeasurePinClick">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE718;" FontSize="12" />
+                                <TextBlock x:Name="MeasurePinText" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="MeasureRemoveButton" Style="{StaticResource PillChipStyle}" Click="OnMeasureRemoveClick">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE74D;" FontSize="12" />
+                                <TextBlock x:Name="MeasureRemoveText" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="MeasureNewButton" Style="{StaticResource PillChipStyle}" Click="OnMeasureNewClick">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE72C;" FontSize="12" />
+                                <TextBlock x:Name="MeasureNewText" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Canvas>
+    </Grid>
+</UserControl>

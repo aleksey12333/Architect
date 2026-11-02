@@ -1,0 +1,259 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="AIArchitectStudio.Views.PdfPagePickerDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AIArchitectStudio"
+    xmlns:views="using:AIArchitectStudio.Views"
+    DefaultButton="Primary"
+    CornerRadius="14"
+    UseLayoutRounding="True">
+
+    <ContentDialog.Resources>
+        <x:Double x:Key="ContentDialogMaxWidth">1240</x:Double>
+        <x:Double x:Key="ContentDialogMaxHeight">980</x:Double>
+
+        <!-- Поле таблицы верификации: моноширинный ввод в стиле полей координат инспектора -->
+        <Style x:Key="VerifyBoxStyle" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="8,5,8,4" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="VerifyLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource FieldLabelStyle}">
+            <Setter Property="Margin" Value="2,0,0,4" />
+        </Style>
+        <Style x:Key="VerifyInfoStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="2,4,0,0" />
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style x:Key="VerifyTimesStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+        </Style>
+    </ContentDialog.Resources>
+
+    <Grid Width="1140" RowSpacing="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="604" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Тип материала и выбор листов -->
+        <Grid Grid.Row="0" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ComboBox x:Name="KindBox" Grid.Column="0" Width="380" CornerRadius="8" VerticalAlignment="Center" />
+            <TextBlock x:Name="CountText" Grid.Column="1" FontSize="12" VerticalAlignment="Center" Margin="8,0" Opacity="0.75" TextTrimming="CharacterEllipsis" />
+            <Button x:Name="AutoButton" Grid.Column="2" CornerRadius="8" Click="OnAutoSelectClick" Style="{StaticResource AccentButtonStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE945;" FontSize="13" />
+                    <TextBlock x:Name="AutoText" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="AllButton" Grid.Column="3" CornerRadius="8" Click="OnSelectAllClick" />
+            <Button x:Name="NoneButton" Grid.Column="4" CornerRadius="8" Click="OnSelectNoneClick" />
+        </Grid>
+
+        <TextBlock x:Name="HintText" Grid.Row="1" FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
+
+        <Grid Grid.Row="2" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="372" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Миниатюры страниц -->
+            <Grid>
+                <GridView x:Name="PagesView" SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnPageClick" Padding="0">
+                    <GridView.ItemTemplate>
+                        <DataTemplate x:DataType="views:PdfPageItem">
+                            <Border Width="152" Height="214" CornerRadius="10" Padding="6" BorderThickness="2"
+                                    BorderBrush="{x:Bind local:XamlHelpers.SelectionBorder(IsSelected), Mode=OneWay}"
+                                    Background="{StaticResource TrackBrush}">
+                                <Grid RowSpacing="4">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Border Background="White" CornerRadius="4">
+                                        <Image Source="{x:Bind Thumbnail, Mode=OneWay}" Stretch="Uniform" />
+                                    </Border>
+                                    <Grid Grid.Row="1" ColumnSpacing="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox MinWidth="0" Padding="4,0,0,0" IsChecked="{x:Bind IsSelected, Mode=TwoWay}" Content="{x:Bind Title}" FontSize="12" />
+                                        <TextBlock Grid.Column="1" Text="{x:Bind KindText, Mode=OneWay}" FontSize="10" Opacity="0.65" VerticalAlignment="Center"
+                                                   HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </GridView.ItemTemplate>
+                </GridView>
+                <StackPanel x:Name="LoadingPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                    <ProgressRing IsActive="True" Width="28" Height="28" />
+                    <TextBlock x:Name="LoadingText" FontSize="12" Opacity="0.8" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Предпросмотр параметров здания: верификация перед 3D -->
+            <Border Grid.Column="1" CornerRadius="14" BorderThickness="1" UseLayoutRounding="True"
+                    Background="{StaticResource TrackBrush}" BorderBrush="{StaticResource StudioBorderBrush}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Padding="14,12,12,8" ColumnSpacing="8" RowSpacing="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Border Grid.RowSpan="2" Width="30" Height="30" CornerRadius="8" Background="{StaticResource AccentSoftBrush}" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xED5E;" FontSize="14" Foreground="{StaticResource AccentBrush}" />
+                        </Border>
+                        <TextBlock x:Name="VerifyTitle" Grid.Column="1" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="VerifySubtitle" Grid.Column="1" Grid.Row="1" FontSize="11" Opacity="0.65" />
+                        <Button x:Name="RefreshButton" Grid.Column="2" Grid.RowSpan="2" Click="OnRefreshFromPdfClick" Height="28" Padding="10,0" CornerRadius="14"
+                                VerticalAlignment="Center" BorderThickness="0" Background="{StaticResource HoverBrush}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE72C;" FontSize="12" />
+                                <TextBlock x:Name="RefreshText" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <TextBlock x:Name="SourceText" Grid.Row="2" Grid.ColumnSpan="3" FontSize="11" Opacity="0.75" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Padding="14,2,14,10" Spacing="8">
+                            <StackPanel>
+                                <TextBlock x:Name="XStepsLabel" Style="{StaticResource VerifyLabelStyle}" />
+                                <TextBox x:Name="XStepsBox" Style="{StaticResource VerifyBoxStyle}" PlaceholderText="3500, 3700, 6000, 3700, 3500" TextChanged="OnFieldChanged" Tag="X" />
+                                <TextBlock x:Name="XSumText" Style="{StaticResource VerifyInfoStyle}" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock x:Name="ZStepsLabel" Style="{StaticResource VerifyLabelStyle}" />
+                                <TextBox x:Name="ZStepsBox" Style="{StaticResource VerifyBoxStyle}" PlaceholderText="1500, 4500, 4900, 1600" TextChanged="OnFieldChanged" Tag="Z" />
+                                <TextBlock x:Name="ZSumText" Style="{StaticResource VerifyInfoStyle}" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock x:Name="LevelsLabel" Style="{StaticResource VerifyLabelStyle}" />
+                                <TextBox x:Name="LevelsBox" Style="{StaticResource VerifyBoxStyle}" PlaceholderText="-1.830; -0.020; +2.830; +5.680; +8.530" TextChanged="OnFieldChanged" Tag="levels" />
+                                <TextBlock x:Name="LevelsInfoText" Style="{StaticResource VerifyInfoStyle}" />
+                            </StackPanel>
+
+                            <Rectangle Height="1" Fill="{StaticResource StudioBorderBrush}" Margin="0,2" />
+
+                            <StackPanel>
+                                <TextBlock x:Name="ColumnsLabel" Style="{StaticResource VerifyLabelStyle}" />
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="72" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="72" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="ColumnProfileBox" HorizontalAlignment="Stretch" MinHeight="28" CornerRadius="6" FontSize="12" SelectionChanged="OnFieldSelectionChanged" Tag="column" />
+                                    <TextBox x:Name="ColumnWBox" Grid.Column="1" Style="{StaticResource VerifyBoxStyle}" TextChanged="OnFieldChanged" Tag="column" />
+                                    <TextBlock Grid.Column="2" Style="{StaticResource VerifyTimesStyle}" Text="×" />
+                                    <TextBox x:Name="ColumnDBox" Grid.Column="3" Style="{StaticResource VerifyBoxStyle}" TextChanged="OnFieldChanged" Tag="column" />
+                                </Grid>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock x:Name="BeamsLabel" Style="{StaticResource VerifyLabelStyle}" />
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="BeamWBox" Style="{StaticResource VerifyBoxStyle}" TextChanged="OnFieldChanged" Tag="beam" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource VerifyTimesStyle}" Text="×" />
+                                    <TextBox x:Name="BeamHBox" Grid.Column="2" Style="{StaticResource VerifyBoxStyle}" TextChanged="OnFieldChanged" Tag="beam" />
+                                </Grid>
+                            </StackPanel>
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock x:Name="SlabLabel" Style="{StaticResource VerifyLabelStyle}" TextTrimming="CharacterEllipsis" />
+                                    <TextBox x:Name="SlabBox" Style="{StaticResource VerifyBoxStyle}" TextChanged="OnFieldChanged" Tag="slab" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock x:Name="WallsLabel" Style="{StaticResource VerifyLabelStyle}" TextTrimming="CharacterEllipsis" />
+                                    <TextBox x:Name="WallsBox" Style="{StaticResource VerifyBoxStyle}" TextChanged="OnFieldChanged" Tag="wall" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock x:Name="FoundationLabel" Style="{StaticResource VerifyLabelStyle}" TextTrimming="CharacterEllipsis" />
+                                    <TextBox x:Name="FoundationBox" Style="{StaticResource VerifyBoxStyle}" TextChanged="OnFieldChanged" Tag="foundation" />
+                                </StackPanel>
+                            </Grid>
+                            <!-- Кровля и парапет одной строкой (поля парапета активны только у плоской кровли с парапетом) -->
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="64" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="64" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="RoofLabel" Style="{StaticResource VerifyLabelStyle}" />
+                                <TextBlock x:Name="ParapetLabel" Grid.Column="1" Grid.ColumnSpan="3" Style="{StaticResource VerifyLabelStyle}" TextTrimming="CharacterEllipsis" />
+                                <ComboBox x:Name="RoofBox" Grid.Row="1" HorizontalAlignment="Stretch" MinHeight="28" CornerRadius="6" FontSize="12" SelectionChanged="OnFieldSelectionChanged" Tag="roof" />
+                                <TextBox x:Name="ParapetTBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource VerifyBoxStyle}" TextChanged="OnFieldChanged" Tag="parapet" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource VerifyTimesStyle}" Text="×" />
+                                <TextBox x:Name="ParapetHBox" Grid.Row="1" Grid.Column="3" Style="{StaticResource VerifyBoxStyle}" TextChanged="OnFieldChanged" Tag="parapet" />
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Итог проверки: готово к построению или что исправить -->
+                    <Border Grid.Row="2" Margin="10,0,10,10" Padding="10,8" CornerRadius="10" Background="{StaticResource HoverBrush}">
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon x:Name="StatusGlyph" Glyph="&#xE73E;" FontSize="13" VerticalAlignment="Top" Margin="0,1,0,0" />
+                            <TextBlock x:Name="StatusText" Grid.Column="1" FontSize="12" TextWrapping="Wrap" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <TextBox x:Name="CommentBox" Grid.Row="3" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="58" MaxHeight="110" CornerRadius="8" FontSize="13" />
+    </Grid>
+</ContentDialog>

@@ -1,0 +1,614 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- Настройки в стиле iPadOS: слева разделы («Общие», «Внешний вид», «Модули и Плагины», «BIM-Координатор», «Хранилище»), справа сгруппированные карточки с переключателями. -->
+<ContentDialog
+    x:Class="AIArchitectStudio.Views.SettingsDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    PrimaryButtonText="{x:Bind L.T('Save', L.Language)}"
+    CloseButtonText="{x:Bind L.T('Cancel', L.Language)}"
+    DefaultButton="Primary"
+    PrimaryButtonClick="OnPrimaryButtonClick"
+    CornerRadius="8"
+    Background="{StaticResource IslandBrush}"
+    BorderBrush="{StaticResource StudioBorderBrush}"
+    BorderThickness="1"
+    UseLayoutRounding="True">
+
+    <ContentDialog.Resources>
+        <x:Double x:Key="ContentDialogMaxWidth">980</x:Double>
+        <x:Double x:Key="ContentDialogMaxHeight">820</x:Double>
+        <Thickness x:Key="ContentDialogPadding">0,0,0,0</Thickness>
+        <!-- Переключатель-таблетка без подписи «Вкл/Откл» и без резерва ширины под неё -->
+        <x:Double x:Key="ToggleSwitchThemeMinWidth">0</x:Double>
+        <Thickness x:Key="ToggleSwitchTopHeaderMargin">0</Thickness>
+        <Style TargetType="ToggleSwitch">
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Width" Value="44" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+
+        <!-- Сгруппированная карточка iPadOS -->
+        <Style x:Key="SettingsGroupStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource TrackBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14,4" />
+        </Style>
+        <Style x:Key="SettingsRowStyle" TargetType="Grid">
+            <Setter Property="MinHeight" Value="48" />
+            <Setter Property="ColumnSpacing" Value="16" />
+            <Setter Property="Padding" Value="0,8" />
+        </Style>
+        <Style x:Key="RowTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="RowHintStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="GroupHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="14,10,0,6" />
+        </Style>
+        <Style x:Key="PageTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Margin" Value="2,0,0,6" />
+        </Style>
+        <Style x:Key="RowSeparatorStyle" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Background" Value="{StaticResource StudioBorderBrush}" />
+        </Style>
+        <Style x:Key="ModuleGlyphStyle" TargetType="Border">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Margin" Value="0,0,-2,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="ProviderCardStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Background" Value="{StaticResource TrackBrush}" />
+        </Style>
+        <Style x:Key="ProviderTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="ProviderStatusStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="MaxLines" Value="2" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="MaxWidth" Value="250" />
+        </Style>
+    </ContentDialog.Resources>
+
+    <Grid Width="900" Height="560">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="226" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ═══════════ Разделы ═══════════ -->
+        <Border Background="{StaticResource TrackBrush}" CornerRadius="8,0,0,0" BorderBrush="{StaticResource StudioBorderBrush}" BorderThickness="0,0,1,0" />
+        <StackPanel Padding="12,22,12,12" Spacing="12">
+            <TextBlock FontSize="22" FontWeight="SemiBold" Margin="8,0,0,4" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind L.T('Settings', L.Language)}" />
+            <ListView x:Name="SectionList" SelectionMode="Single" SelectionChanged="OnSectionChanged" Padding="0">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                        <Setter Property="MinHeight" Value="38" />
+                        <Setter Property="Padding" Value="10,0" />
+                        <Setter Property="Margin" Value="0,1" />
+                        <Setter Property="CornerRadius" Value="8" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListViewItem Tag="General">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Border Width="26" Height="26" CornerRadius="7" Background="#8E8E93"><FontIcon Glyph="&#xE713;" FontSize="13" Foreground="White" /></Border>
+                        <TextBlock VerticalAlignment="Center" FontSize="13" Text="{x:Bind L.T('SettingsGeneral', L.Language)}" />
+                    </StackPanel>
+                </ListViewItem>
+                <ListViewItem Tag="Appearance">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Border Width="26" Height="26" CornerRadius="7" Background="#0A84FF"><FontIcon Glyph="&#xE790;" FontSize="13" Foreground="White" /></Border>
+                        <TextBlock VerticalAlignment="Center" FontSize="13" Text="{x:Bind L.T('SettingsAppearance', L.Language)}" />
+                    </StackPanel>
+                </ListViewItem>
+                <ListViewItem Tag="Modules">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Border Width="26" Height="26" CornerRadius="7" Background="#FF9F0A"><FontIcon Glyph="&#xEA86;" FontSize="13" Foreground="White" /></Border>
+                        <TextBlock VerticalAlignment="Center" FontSize="13" Text="{x:Bind L.T('SettingsModules', L.Language)}" />
+                    </StackPanel>
+                </ListViewItem>
+                <ListViewItem Tag="Materials">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Border Width="26" Height="26" CornerRadius="7" Background="#FF375F"><FontIcon Glyph="&#xE8C7;" FontSize="13" Foreground="White" /></Border>
+                        <TextBlock VerticalAlignment="Center" FontSize="13" Text="{x:Bind L.T('SettingsMaterials', L.Language)}" />
+                    </StackPanel>
+                </ListViewItem>
+                <ListViewItem Tag="Norms">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Border Width="26" Height="26" CornerRadius="7" Background="#64D2FF"><FontIcon Glyph="&#xE9D9;" FontSize="13" Foreground="White" /></Border>
+                        <TextBlock VerticalAlignment="Center" FontSize="13" Text="{x:Bind L.T('SettingsNorms', L.Language)}" />
+                    </StackPanel>
+                </ListViewItem>
+                <ListViewItem Tag="Assistant">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Border Width="26" Height="26" CornerRadius="7" Background="#5E5CE6"><FontIcon Glyph="&#xE8BD;" FontSize="13" Foreground="White" /></Border>
+                        <TextBlock VerticalAlignment="Center" FontSize="13" Text="{x:Bind L.T('SettingsAssistant', L.Language)}" />
+                    </StackPanel>
+                </ListViewItem>
+                <ListViewItem Tag="Storage">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Border Width="26" Height="26" CornerRadius="7" Background="#30D158"><FontIcon Glyph="&#xE8B7;" FontSize="13" Foreground="White" /></Border>
+                        <TextBlock VerticalAlignment="Center" FontSize="13" Text="{x:Bind L.T('SettingsStorage', L.Language)}" />
+                    </StackPanel>
+                </ListViewItem>
+            </ListView>
+        </StackPanel>
+
+        <!-- ═══════════ Содержимое раздела ═══════════ -->
+        <ScrollViewer x:Name="ContentScroll" Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="26,22,26,18">
+            <Grid>
+                <!-- ───────── Общие ───────── -->
+                <StackPanel x:Name="GeneralPage" Spacing="4">
+                    <TextBlock Style="{StaticResource PageTitleStyle}" Text="{x:Bind L.T('SettingsGeneral', L.Language)}" />
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SettingsProfile', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}" Padding="14,12">
+                        <StackPanel Spacing="10">
+                            <Border Style="{StaticResource SegmentTrackStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <RadioButton x:Name="ProfileBeginnerRadio" Grid.Column="0" GroupName="SettingsProfile" Style="{StaticResource SegmentRadioStyle}" HorizontalAlignment="Stretch"
+                                                 Checked="OnProfileChecked" Content="{x:Bind L.T('ProfileBeginnerShort', L.Language)}" />
+                                    <RadioButton x:Name="ProfileArchitectRadio" Grid.Column="1" GroupName="SettingsProfile" Style="{StaticResource SegmentRadioStyle}" HorizontalAlignment="Stretch"
+                                                 Checked="OnProfileChecked" Content="{x:Bind L.T('ProfileArchitectShort', L.Language)}" />
+                                    <RadioButton x:Name="ProfileEngineerRadio" Grid.Column="2" GroupName="SettingsProfile" Style="{StaticResource SegmentRadioStyle}" HorizontalAlignment="Stretch"
+                                                 Checked="OnProfileChecked" Content="{x:Bind L.T('ProfileEngineerShort', L.Language)}" />
+                                </Grid>
+                            </Border>
+                            <TextBlock x:Name="ProfileHintText" Style="{StaticResource RowHintStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SettingsWorkspace', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}">
+                        <StackPanel>
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('Language', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsLanguageHint', L.Language)}" />
+                                </StackPanel>
+                                <ComboBox x:Name="LanguageBox" Grid.Column="1" MinWidth="150" VerticalAlignment="Center" CornerRadius="6" />
+                            </Grid>
+                            <Border Style="{StaticResource RowSeparatorStyle}" />
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsShowWelcome', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsShowWelcomeHint', L.Language)}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowWelcomeSwitch" Grid.Column="1" OnContent="" OffContent="" VerticalAlignment="Center" />
+                            </Grid>
+                            <Border Style="{StaticResource RowSeparatorStyle}" />
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsAppendDefault', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsAppendDefaultHint', L.Language)}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="AppendSwitch" Grid.Column="1" OnContent="" OffContent="" VerticalAlignment="Center" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SectionEstimate', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}" Padding="14,12">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                            </Grid.ColumnDefinitions>
+                            <NumberBox x:Name="ConcretePriceBox" Grid.Column="0" Minimum="0" SmallChange="100" LargeChange="1000" CornerRadius="6"
+                                       SpinButtonPlacementMode="Compact" Header="{x:Bind L.T('ConcretePrice', L.Language)}" />
+                            <NumberBox x:Name="GlazingPriceBox" Grid.Column="1" Minimum="0" SmallChange="100" LargeChange="1000" CornerRadius="6"
+                                       SpinButtonPlacementMode="Compact" Header="{x:Bind L.T('GlazingPrice', L.Language)}" />
+                            <NumberBox x:Name="RebarPriceBox" Grid.Column="2" Minimum="0" SmallChange="1000" LargeChange="10000" CornerRadius="6"
+                                       SpinButtonPlacementMode="Compact" Header="{x:Bind L.T('RebarPrice', L.Language)}" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- ───────── Внешний вид ───────── -->
+                <StackPanel x:Name="AppearancePage" Spacing="4" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource PageTitleStyle}" Text="{x:Bind L.T('SettingsAppearance', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}" Margin="0,10,0,0">
+                        <Grid Style="{StaticResource SettingsRowStyle}">
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Spacing="1">
+                                <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsFollowSystem', L.Language)}" />
+                                <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsFollowSystemHint', L.Language)}" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="FollowSystemSwitch" Grid.Column="1" OnContent="" OffContent="" VerticalAlignment="Center" Toggled="OnFollowSystemToggled" />
+                        </Grid>
+                    </Border>
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('Theme', L.Language)}" />
+                    <VariableSizedWrapGrid x:Name="ThemeTiles" Orientation="Horizontal" ItemWidth="182" ItemHeight="132" Margin="-4,0,0,0" />
+                </StackPanel>
+
+                <!-- ───────── Модули и Плагины ───────── -->
+                <StackPanel x:Name="ModulesPage" Spacing="4" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource PageTitleStyle}" Text="{x:Bind L.T('SettingsModules', L.Language)}" />
+                    <TextBlock Style="{StaticResource RowHintStyle}" Margin="2,0,24,4" Text="{x:Bind L.T('SettingsModulesHint', L.Language)}" />
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SettingsModulesAnalysis', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}">
+                        <StackPanel>
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource ModuleGlyphStyle}" Background="#FF9F0A"><FontIcon Glyph="&#xE706;" FontSize="13" Foreground="White" /></Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('ModuleInsolation', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('ModuleInsolationHint', L.Language)}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ModuleInsolationSwitch" Grid.Column="2" OnContent="" OffContent="" VerticalAlignment="Center" />
+                            </Grid>
+                            <Border Style="{StaticResource RowSeparatorStyle}" Margin="42,0,0,0" />
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource ModuleGlyphStyle}" Background="#FF375F"><FontIcon Glyph="&#xE9D9;" FontSize="13" Foreground="White" /></Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('ModuleAnalysis', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('ModuleAnalysisHint', L.Language)}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ModuleAnalysisSwitch" Grid.Column="2" OnContent="" OffContent="" VerticalAlignment="Center" />
+                            </Grid>
+                            <Border Style="{StaticResource RowSeparatorStyle}" Margin="42,0,0,0" />
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource ModuleGlyphStyle}" Background="#5E5CE6"><FontIcon Glyph="&#xE7BA;" FontSize="13" Foreground="White" /></Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('ModuleClash', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('ModuleClashHint', L.Language)}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ModuleClashSwitch" Grid.Column="2" OnContent="" OffContent="" VerticalAlignment="Center" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SettingsModulesDocs', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}">
+                        <StackPanel>
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource ModuleGlyphStyle}" Background="#FF7A45"><FontIcon Glyph="&#xE8A9;" FontSize="13" Foreground="White" /></Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('ModuleRebar', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('ModuleRebarHint', L.Language)}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ModuleRebarSwitch" Grid.Column="2" OnContent="" OffContent="" VerticalAlignment="Center" />
+                            </Grid>
+                            <Border Style="{StaticResource RowSeparatorStyle}" Margin="42,0,0,0" />
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource ModuleGlyphStyle}" Background="#30D158"><FontIcon Glyph="&#xE9F9;" FontSize="13" Foreground="White" /></Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('ModuleQuantities', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('ModuleQuantitiesHint', L.Language)}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ModuleQuantitiesSwitch" Grid.Column="2" OnContent="" OffContent="" VerticalAlignment="Center" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingsGroupStyle}" Margin="0,14,0,0">
+                        <Grid Style="{StaticResource SettingsRowStyle}">
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Spacing="1">
+                                <TextBlock x:Name="ModulesLevelText" Style="{StaticResource RowTitleStyle}" />
+                                <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsModulesResetHint', L.Language)}" />
+                            </StackPanel>
+                            <Button Grid.Column="1" CornerRadius="6" VerticalAlignment="Center" Click="OnModulesResetClick" Content="{x:Bind L.T('SettingsModulesReset', L.Language)}" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- ───────── Материалы и Сметы ───────── -->
+                <StackPanel x:Name="MaterialsPage" Spacing="4" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource PageTitleStyle}" Text="{x:Bind L.T('SettingsMaterials', L.Language)}" />
+                    <TextBlock Style="{StaticResource RowHintStyle}" Margin="2,0,24,4" Text="{x:Bind L.T('SettingsMaterialsHint', L.Language)}" />
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SettingsMaterialsLibrary', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}" Padding="12,8,12,8">
+                        <StackPanel x:Name="MaterialRows" Spacing="0" />
+                    </Border>
+
+                    <Border Style="{StaticResource SettingsGroupStyle}" Margin="0,14,0,0">
+                        <Grid Style="{StaticResource SettingsRowStyle}">
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Spacing="1">
+                                <TextBlock x:Name="MaterialsStatusText" Style="{StaticResource RowTitleStyle}" />
+                                <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsMaterialsResetHint', L.Language)}" />
+                            </StackPanel>
+                            <Button Grid.Column="1" CornerRadius="6" VerticalAlignment="Center" Click="OnMaterialsResetClick" Content="{x:Bind L.T('SettingsMaterialsReset', L.Language)}" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- ───────── Нормативы и Расчёт ───────── -->
+                <StackPanel x:Name="NormsPage" Spacing="4" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource PageTitleStyle}" Text="{x:Bind L.T('SettingsNorms', L.Language)}" />
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SettingsNormsClimate', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}">
+                        <StackPanel>
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsNormsSnow', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsNormsSnowHint', L.Language)}" />
+                                </StackPanel>
+                                <ComboBox x:Name="SnowRegionBox" Grid.Column="1" MinWidth="190" VerticalAlignment="Center" CornerRadius="6" SelectionChanged="OnNormsInputChanged" />
+                            </Grid>
+                            <Border Style="{StaticResource RowSeparatorStyle}" />
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsNormsWind', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsNormsWindHint', L.Language)}" />
+                                </StackPanel>
+                                <ComboBox x:Name="WindRegionBox" Grid.Column="1" MinWidth="190" VerticalAlignment="Center" CornerRadius="6" SelectionChanged="OnNormsInputChanged" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SettingsNormsReliability', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}" Padding="14,12">
+                        <StackPanel Spacing="10">
+                            <Border Style="{StaticResource SegmentTrackStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <RadioButton x:Name="Ks1Radio" Grid.Column="0" GroupName="SettingsKs" Style="{StaticResource SegmentRadioStyle}" HorizontalAlignment="Stretch"
+                                                 Checked="OnNormsInputChanged" Content="{x:Bind L.T('SettingsKs1', L.Language)}" />
+                                    <RadioButton x:Name="Ks2Radio" Grid.Column="1" GroupName="SettingsKs" Style="{StaticResource SegmentRadioStyle}" HorizontalAlignment="Stretch"
+                                                 Checked="OnNormsInputChanged" Content="{x:Bind L.T('SettingsKs2', L.Language)}" />
+                                    <RadioButton x:Name="Ks3Radio" Grid.Column="2" GroupName="SettingsKs" Style="{StaticResource SegmentRadioStyle}" HorizontalAlignment="Stretch"
+                                                 Checked="OnNormsInputChanged" Content="{x:Bind L.T('SettingsKs3', L.Language)}" />
+                                </Grid>
+                            </Border>
+                            <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsNormsReliabilityHint', L.Language)}" />
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock x:Name="NormsStatusText" Style="{StaticResource RowHintStyle}" VerticalAlignment="Center" />
+                                <Button x:Name="ApplyNormsButton" Grid.Column="1" Style="{StaticResource AccentButtonStyle}" CornerRadius="8" Click="OnApplyNormsClick">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE73E;" FontSize="12" />
+                                        <TextBlock Text="{x:Bind L.T('SettingsNormsApply', L.Language)}" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SettingsNormsBehavior', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}">
+                        <StackPanel>
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsLiveRecalc', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsLiveRecalcHint', L.Language)}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="LiveRecalcSwitch" Grid.Column="1" OnContent="" OffContent="" VerticalAlignment="Center" />
+                            </Grid>
+                            <Border Style="{StaticResource RowSeparatorStyle}" />
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsNormTips', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsNormTipsHint', L.Language)}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="NormTipsSwitch" Grid.Column="1" OnContent="" OffContent="" VerticalAlignment="Center" />
+                            </Grid>
+                            <Border Style="{StaticResource RowSeparatorStyle}" />
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsSteelGlazing', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsSteelGlazingHint', L.Language)}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="SteelGlazingSwitch" Grid.Column="1" OnContent="" OffContent="" VerticalAlignment="Center" />
+                            </Grid>
+                            <Border Style="{StaticResource RowSeparatorStyle}" />
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsMuMin', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsMuMinHint', L.Language)}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="MuMinSwitch" Grid.Column="1" OnContent="" OffContent="" VerticalAlignment="Center" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- ───────── BIM-Координатор ───────── -->
+                <StackPanel x:Name="AssistantPage" Spacing="4" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource PageTitleStyle}" Text="{x:Bind L.T('SettingsAssistant', L.Language)}" />
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('DefaultModel', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}" Padding="14,12">
+                        <ComboBox x:Name="ModelBox" HorizontalAlignment="Stretch" CornerRadius="6" />
+                    </Border>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SettingsLocalAi', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}">
+                        <Grid Style="{StaticResource SettingsRowStyle}">
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Spacing="1">
+                                <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsLocalAiAutoStart', L.Language)}" />
+                                <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsLocalAiAutoStartHint', L.Language)}" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="LocalAiAutoStartSwitch" Grid.Column="1" OnContent="" OffContent="" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('ApiKeysTitle', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}" Padding="14,12">
+                        <StackPanel Spacing="6">
+                            <PasswordBox x:Name="UniversalKeyBox" CornerRadius="6" Header="{x:Bind L.T('UniversalKey', L.Language)}"
+                                         PlaceholderText="AIza…  ·  sk-ant-…  ·  sk-or-…  ·  sk-…"
+                                         PasswordChanged="OnUniversalKeyChanged" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon x:Name="DetectGlyph" FontSize="12" Glyph="&#xE946;" Opacity="0.7" VerticalAlignment="Center" />
+                                <TextBlock x:Name="DetectText" FontSize="11" Opacity="0.75" TextWrapping="Wrap" MaxWidth="520"
+                                           Text="{x:Bind L.T('UniversalKeyHint', L.Language)}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Grid ColumnSpacing="10" RowSpacing="10" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource ProviderCardStyle}">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE945;" FontSize="13" />
+                                    <TextBlock Style="{StaticResource ProviderTitleStyle}" Text="Google Gemini" />
+                                </StackPanel>
+                                <PasswordBox x:Name="GeminiKeyBox" PlaceholderText="AIza…" CornerRadius="6" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon x:Name="GeminiGlyph" FontSize="11" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="GeminiStatus" Style="{StaticResource ProviderStatusStyle}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource ProviderCardStyle}">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE8BD;" FontSize="13" />
+                                    <TextBlock Style="{StaticResource ProviderTitleStyle}" Text="OpenAI / ChatGPT" />
+                                </StackPanel>
+                                <PasswordBox x:Name="OpenAiKeyBox" PlaceholderText="sk-… / sk-proj-…" CornerRadius="6" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon x:Name="OpenAiGlyph" FontSize="11" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="OpenAiStatus" Style="{StaticResource ProviderStatusStyle}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource ProviderCardStyle}">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE8F2;" FontSize="13" />
+                                    <TextBlock Style="{StaticResource ProviderTitleStyle}" Text="Anthropic / Claude" />
+                                </StackPanel>
+                                <PasswordBox x:Name="AnthropicKeyBox" PlaceholderText="sk-ant-…" CornerRadius="6" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon x:Name="AnthropicGlyph" FontSize="11" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="AnthropicStatus" Style="{StaticResource ProviderStatusStyle}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource ProviderCardStyle}">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE968;" FontSize="13" />
+                                    <TextBlock Style="{StaticResource ProviderTitleStyle}" Text="OpenRouter" />
+                                </StackPanel>
+                                <PasswordBox x:Name="OpenRouterKeyBox" PlaceholderText="sk-or-…" CornerRadius="6" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon x:Name="OpenRouterGlyph" FontSize="11" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="OpenRouterStatus" Style="{StaticResource ProviderStatusStyle}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Grid ColumnSpacing="10" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="CheckButton" Style="{StaticResource AccentButtonStyle}" Click="OnCheckKeysClick" CornerRadius="8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE895;" FontSize="13" />
+                                <TextBlock Text="{x:Bind L.T('CheckKeys', L.Language)}" />
+                            </StackPanel>
+                        </Button>
+                        <ProgressRing x:Name="CheckRing" Grid.Column="1" Width="18" Height="18" IsActive="False" />
+                        <TextBlock Grid.Column="2" FontSize="11" Opacity="0.65" TextWrapping="Wrap" VerticalAlignment="Center"
+                                   Text="{x:Bind L.T('ApiKeyHint', L.Language)}" />
+                    </Grid>
+                </StackPanel>
+
+                <!-- ───────── Хранилище ───────── -->
+                <StackPanel x:Name="StoragePage" Spacing="4" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource PageTitleStyle}" Text="{x:Bind L.T('SettingsStorage', L.Language)}" />
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SettingsLocalAi', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}" Padding="14,12">
+                        <StackPanel Spacing="12">
+                            <StackPanel Spacing="4">
+                                <TextBox x:Name="OllamaModelsDirBox" CornerRadius="6" Header="{x:Bind L.T('SettingsLocalAiFolder', L.Language)}" />
+                                <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('SettingsLocalAiFolderHint', L.Language)}" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <TextBox x:Name="ModelsDirBox" CornerRadius="6" Header="{x:Bind L.T('LocalModelsDir', L.Language)}" />
+                                <TextBlock x:Name="ModelsDirHint" Style="{StaticResource RowHintStyle}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('SettingsFiles', L.Language)}" />
+                    <Border Style="{StaticResource SettingsGroupStyle}">
+                        <StackPanel>
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsFileLocation', L.Language)}" />
+                                    <TextBlock x:Name="SettingsPathText" Style="{StaticResource RowHintStyle}" IsTextSelectionEnabled="True" />
+                                </StackPanel>
+                                <Button Grid.Column="1" CornerRadius="6" VerticalAlignment="Center" Click="OnRevealSettingsClick" Content="{x:Bind L.T('SettingsReveal', L.Language)}" />
+                            </Grid>
+                            <Border Style="{StaticResource RowSeparatorStyle}" />
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsRecentClear', L.Language)}" />
+                                    <TextBlock x:Name="RecentCountText" Style="{StaticResource RowHintStyle}" />
+                                </StackPanel>
+                                <Button x:Name="ClearRecentButton" Grid.Column="1" CornerRadius="6" VerticalAlignment="Center" Click="OnClearRecentClick"
+                                        Content="{x:Bind L.T('SettingsClear', L.Language)}" />
+                            </Grid>
+                            <Border Style="{StaticResource RowSeparatorStyle}" />
+                            <Grid Style="{StaticResource SettingsRowStyle}">
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Style="{StaticResource RowTitleStyle}" Text="{x:Bind L.T('SettingsKeysVault', L.Language)}" />
+                                    <TextBlock Style="{StaticResource RowHintStyle}" Text="{x:Bind L.T('ApiKeyHint', L.Language)}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</ContentDialog>

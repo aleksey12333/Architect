@@ -1,0 +1,48 @@
+# Architect Studio Pro — C# / .NET 8 / WinUI 3
+
+# Сборка
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+*.binlog
+artifacts/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+launchSettings.json
+
+# Локальные модели (.gguf, гигабайты) — только на машине разработчика, в репозиторий не попадают
+LocalModels/
+*.gguf
+
+# Временные файлы, дампы и логи
+*.tmp
+*.log
+*.dmp
+*.mdmp
+*.etl
+*.cache
+~$*
+Thumbs.db
+Desktop.ini
+
+# Результаты автотестов (эталон ядра SelfTest/selftest-baseline.json остаётся под контролем версий)
+SelfTest/*
+!SelfTest/selftest-baseline.json
+TestResults/
+
+# Собранные инсталляторы (скрипт .iss — под контролем версий)
+Installer/Output/
+*.msix
+*.appx
+
+# NuGet
+*.nupkg
+packages/

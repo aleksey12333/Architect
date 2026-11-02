@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>AIArchitectStudio</RootNamespace>
+    <AssemblyName>AIArchitectStudio</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <DefaultLanguage>ru-RU</DefaultLanguage>
+  </PropertyGroup>
+
+  <!-- Защита локальных моделей: .gguf файлы никогда не копируются и не включаются в сборку -->
+  <ItemGroup>
+    <None Remove="LocalModels\**" />
+    <Content Remove="LocalModels\**" />
+    <Compile Remove="LocalModels\**" />
+    <EmbeddedResource Remove="LocalModels\**" />
+    <Page Remove="LocalModels\**" />
+    <None Remove="Prompts\**" />
+  </ItemGroup>
+
+  <!-- Превью шаблонов стартового окна (снимки «Белого макета» пресетов, PNG с прозрачным фоном) -->
+  <ItemGroup>
+    <None Remove="Assets\Templates\*.png" />
+    <Content Include="Assets\Templates\*.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250602001" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4188" />
+    <PackageReference Include="HelixToolkit.WinUI" Version="2.27.3" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="LLamaSharp" Version="0.27.0" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
+    <PackageReference Include="LLamaSharp.Backend.Vulkan.Windows" Version="0.27.0" />
+  </ItemGroup>
+
+  <!--
+    HelixToolkit.WinUI 2.27.3 в unpackaged-режиме: тема библиотеки (Generic.xbf из HelixToolkit.WinUI.pri) содержит
+    служебные экземпляры Element3D, создание которых при загрузке темы роняет WinUI (0xC000027B).
+    Исключаем библиотечный .pri и подставляем собственную тему HelixToolkit.WinUI\Themes\Generic.xaml
+    (тот же URI ms-appx:///HelixToolkit.WinUI/Themes/Generic.xaml, только стили и шаблон Viewport3DX).
+  -->
+  <Target Name="ExcludeHelixLibraryPri" AfterTargets="_GetPriFilesFromPayload">
+    <ItemGroup>
+      <_PriFilesFromPayload Remove="@(_PriFilesFromPayload)" Condition="'%(Filename)%(Extension)' == 'HelixToolkit.WinUI.pri'" />
+    </ItemGroup>
+  </Target>
+
+</Project>
