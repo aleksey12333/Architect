@@ -132,7 +132,27 @@ public partial class App : Application
             return;
         }
         Services.GetRequiredService<AppStartupOptions>().StartupPresetId = null;
-        _ = RunStartupShellAsync(settings, theme, loc, forceOnboarding: firstRun);
+        _ = RunStartupShellSafeAsync(settings, theme, loc, forceOnboarding: firstRun);
+    }
+
+    /// <summary>
+    /// Сбой оболочки (заставка, стартовое окно) не должен оставлять процесс без видимого окна: причина — в crash.log,
+    /// дальше — главное окно с чистым проектом.
+    /// </summary>
+    private async Task RunStartupShellSafeAsync(SettingsService settings, ThemeService theme, LocalizationService loc, bool forceOnboarding)
+    {
+        try
+        {
+            await RunStartupShellAsync(settings, theme, loc, forceOnboarding);
+        }
+        catch (Exception ex)
+        {
+            WriteCrashLog("startup-shell", ex);
+            if (_window is not null) return;
+            await OpenEditorAsync(StartupChoice.Empty, null);
+            // Недосозданное окно оболочки (сбой в конструкторе) не закрыть — выход вместе с главным окном.
+            if (_window is not null) _window.Closed += (_, _) => Exit();
+        }
     }
 
     /// <summary>

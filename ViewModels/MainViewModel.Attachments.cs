@@ -152,7 +152,7 @@ public sealed partial class MainViewModel
     {
         var journal = Scene.Transactions;
         int current = journal.UndoCount, total = journal.UndoCount + journal.RedoCount;
-        VersionLabel = Loc.Format("VersionLabel", current + 1, total + 1);
+        VersionLabel = Loc.Format("SceneVersionLabel", current + 1, total + 1);
         VersionDetail = current == 0 ? Loc.Get("VersionInitial") : journal.UndoStack[^1].Name;
         VersionBackCommand.NotifyCanExecuteChanged();
         VersionForwardCommand.NotifyCanExecuteChanged();

@@ -999,7 +999,7 @@ public sealed partial class LocalizationService : ObservableObject
         ["AttachSkipped"] = ("Модуль {1} не принимает изображения — вложений не отправлено: {0}", "{1} does not accept images — {0} attachments were not sent"),
         ["AttachKindView"] = ("3D-вид", "3D view"),
         ["AttachKindPlan"] = ("План", "Plan"),
-        ["VersionLabel"] = ("Версия {0} из {1}", "Version {0} of {1}"),
+        ["SceneVersionLabel"] = ("Версия {0} из {1}", "Version {0} of {1}"),
         ["VersionInitial"] = ("Исходное состояние", "Initial state"),
         ["VersionBack"] = ("Предыдущая версия сцены", "Previous scene version"),
         ["VersionForward"] = ("Следующая версия сцены", "Next scene version"),

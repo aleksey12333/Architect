@@ -36,6 +36,12 @@
     <Content Include="Assets\Templates\*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Демонстрационный комплект (прайс поставщиков CSV, библиотека .aialib.json, растровый план, шпаргалка) — рядом с exe и в инсталляторе -->
+  <ItemGroup>
+    <None Remove="DemoKit\**" />
+    <Content Include="DemoKit\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250602001" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4188" />

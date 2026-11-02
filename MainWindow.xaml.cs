@@ -1383,6 +1383,27 @@ public sealed partial class MainWindow : Window
                     Environment.Exit(0);
                 }
             };
+        // Демонстрационный комплект: AIA_DEBUG_DEMOKIT=папка DemoKit;отчёт.txt — прайс, библиотека и план читаются сервисами
+        // (нет PNG плана — записывается синтетический); вне основного автотеста, AIA_DEBUG_EXIT=1 — закрыть после проверки.
+        if (Env("DEMOKIT") is { Length: > 0 } demoKitSpec)
+            RootGrid.Loaded += async (_, _) =>
+            {
+                var parts = demoKitSpec.Split(';', 2);
+                string report = parts.Length > 1 ? parts[1] : Path.Combine(parts[0], "..", "demokit-check.txt");
+                try
+                {
+                    await CadSelfTestService.VerifyDemoKitAsync(parts[0], report);
+                }
+                catch (Exception ex)
+                {
+                    await File.WriteAllTextAsync(report, "ИТОГ: ИСКЛЮЧЕНИЕ\n" + ex);
+                }
+                if (Env("EXIT") == "1")
+                {
+                    App.Services.GetService<OllamaProcessManager>()?.Dispose();
+                    Environment.Exit(0);
+                }
+            };
         if (Env("MENU") == "model") RootGrid.Loaded += (_, _) => DispatcherQueue.TryEnqueue(() => ModelFlyout.ShowAt(ModelButton));
         if (Env("ERRORLOG") == "1") RootGrid.Loaded += (_, _) => DispatcherQueue.TryEnqueue(() => ErrorLogFlyout.ShowAt(ErrorInfoBar));
     }
