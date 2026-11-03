@@ -198,6 +198,9 @@ public sealed partial class WebAiAccountBridgePanel : UserControl
 
     private Task EnsureWebViewAsync() => _initTask ??= InitializeWebViewAsync();
 
+    /// <summary>Процесс браузера WebView2 запускался (панель открывали явно); при старте приложения — false.</summary>
+    internal bool IsBrowserStarted => _initTask is not null;
+
     private async Task InitializeWebViewAsync()
     {
         try

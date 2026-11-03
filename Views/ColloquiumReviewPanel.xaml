@@ -13,7 +13,7 @@
         <Style x:Key="ReviewTileStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource TrackBrush}" />
             <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="9,7,9,8" />
+            <Setter Property="Padding" Value="8,7,8,8" />
         </Style>
         <Style x:Key="ReviewTileLabelStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="10" />
@@ -21,7 +21,7 @@
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
         <Style x:Key="ReviewTileValueStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
@@ -46,17 +46,22 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Border Width="30" Height="30" CornerRadius="15" Background="{StaticResource AccentSoftBrush}" VerticalAlignment="Center">
                     <FontIcon Glyph="&#xE83D;" FontSize="13" Foreground="{StaticResource AccentBrush}" />
                 </Border>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                    <TextBlock FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextPrimaryBrush}"
+                    <TextBlock FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextPrimaryBrush}"
                                Text="{x:Bind L.T('ReviewTitle', L.Language), Mode=OneWay}" />
                     <TextBlock FontSize="10" FontFamily="{StaticResource MonoFont}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextSecondaryBrush}"
                                Text="{x:Bind ViewModel.ReviewSubtitle, Mode=OneWay}" />
                 </StackPanel>
-                <Button Grid.Column="2" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.KeepGeneratorVariantCommand}"
+                <Button Grid.Column="2" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.ToggleCouncilDockCollapsedCommand}"
+                        ToolTipService.ToolTip="{x:Bind L.T('W1DockCollapse', L.Language), Mode=OneWay}">
+                    <FontIcon Glyph="&#xE76C;" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                </Button>
+                <Button Grid.Column="3" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.KeepGeneratorVariantCommand}"
                         ToolTipService.ToolTip="{x:Bind L.T('ReviewKeep', L.Language), Mode=OneWay}">
                     <FontIcon Glyph="&#xE711;" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
                 </Button>
@@ -65,10 +70,10 @@
             <!-- Сводка: проверки, устранённые дефекты, K_исп, смета -->
             <Grid Grid.Row="1" ColumnSpacing="6">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="1.25*" />
-                    <ColumnDefinition Width="1.25*" />
+                    <ColumnDefinition Width="0.8*" />
+                    <ColumnDefinition Width="0.8*" />
+                    <ColumnDefinition Width="1.4*" />
+                    <ColumnDefinition Width="1.4*" />
                 </Grid.ColumnDefinitions>
                 <Border Style="{StaticResource ReviewTileStyle}">
                     <StackPanel>
@@ -114,7 +119,7 @@
             </Grid>
 
             <!-- Карточки правок -->
-            <ScrollViewer Grid.Row="3" MaxHeight="430" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="-2,0,-6,0" Padding="2,0,6,0">
+            <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="-2,0,-6,0" Padding="2,0,6,0">
                 <ItemsControl ItemsSource="{x:Bind ViewModel.ReviewFixes}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>

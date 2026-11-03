@@ -332,6 +332,11 @@ public sealed partial class WelcomeWindow : Window
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
+#if DEBUG
+    /// <summary>Только Debug: выбор без клика (автотест кнопки «Начальный экран» редактора).</summary>
+    internal Task DebugCompleteAsync(StartupChoice choice) => CompleteAsync(choice);
+#endif
+
     /// <summary>Окно гаснет и сообщает выбор; повторные клики во время анимации игнорируются.</summary>
     private async Task CompleteAsync(StartupChoice choice)
     {

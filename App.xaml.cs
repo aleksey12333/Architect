@@ -294,6 +294,55 @@ public partial class App : Application
         }
     }
 
+    /// <summary>Стартовое окно, открытое из редактора кнопкой «Начальный экран» (null — закрыто).</summary>
+    public static WelcomeWindow? StartScreenWindow { get; private set; }
+
+    /// <summary>
+    /// «Начальный экран» из редактора: стартовое окно поверх главного; выбор (шаблон, пустой проект, файл) применяется к открытому
+    /// редактору без перезапуска, закрытие окна без выбора — просто возврат к проекту.
+    /// </summary>
+    public void ShowStartScreenFromEditor()
+    {
+        if (StartScreenWindow is { } open)
+        {
+            open.Activate();
+            return;
+        }
+        var welcome = new WelcomeWindow(Services.GetRequiredService<SettingsService>(), Services.GetRequiredService<ThemeService>(),
+            Services.GetRequiredService<LocalizationService>(), Services.GetRequiredService<MainViewModel>(), forceOnboarding: false);
+        StartScreenWindow = welcome;
+        welcome.Completed += async (_, choice) =>
+        {
+            await ApplyStartChoiceAsync(choice);
+            welcome.Close();
+        };
+        welcome.Closed += (_, _) =>
+        {
+            StartScreenWindow = null;
+            _window?.Activate();
+        };
+        welcome.Activate();
+    }
+
+    /// <summary>Выбор стартового окна для уже открытого редактора: шаблон, пустой проект или файл; камера — «Показать всё».</summary>
+    public static async Task ApplyStartChoiceAsync(StartupChoice choice)
+    {
+        var viewModel = Services.GetRequiredService<MainViewModel>();
+        switch (choice.Kind)
+        {
+            case StartupChoiceKind.Preset when choice.PresetId is { } presetId:
+                viewModel.LoadStartupScene(presetId);
+                break;
+            case StartupChoiceKind.Empty:
+                viewModel.StartEmptyProject();
+                break;
+            case StartupChoiceKind.OpenFile when choice.FilePath is { } path:
+                await viewModel.OpenAnyAsync(path);
+                break;
+        }
+        viewModel.RequestZoomExtents();
+    }
+
     private MainWindow OpenMainWindow(StartupChoice? choice)
     {
         var window = Services.GetRequiredService<MainWindow>();

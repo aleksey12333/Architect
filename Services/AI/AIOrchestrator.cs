@@ -178,6 +178,9 @@ public sealed class AIOrchestrator(
     /// </summary>
     public SolvedResponse Solve(string text, AiRequestContext ctx) => Solve(text, ctx, scene);
 
+    /// <summary>Строгая логика проёмов в солвере (<see cref="SolverInput.EnforceBuildingLogic"/>); включает главное окно приложения.</summary>
+    public bool EnforceBuildingLogic { get; set; }
+
     public SolvedResponse Solve(string text, AiRequestContext ctx, SceneStateService target)
     {
         if (!AiJsonExtractor.TryExtract(text, out var document))
@@ -197,7 +200,8 @@ public sealed class AIOrchestrator(
             Mode = mode,
             ExistingElements = target.Elements.ToList(),
             ExistingGroups = target.BuildingGroups.ToList(),
-            SelectedElementId = selectedId
+            SelectedElementId = selectedId,
+            EnforceBuildingLogic = EnforceBuildingLogic
         });
 
         var report = result.Report;

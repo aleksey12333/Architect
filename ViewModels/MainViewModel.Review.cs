@@ -93,7 +93,18 @@ public sealed partial class MainViewModel
     /// <summary>Лента Коллоквиума скрывается, пока открыт лист согласования (то же место экрана).</summary>
     public bool IsCouncilTimelineVisible => IsCouncilTimelineOpen && Review is null;
 
-    partial void OnIsCouncilTimelineOpenChanged(bool value) => OnPropertyChanged(nameof(IsCouncilTimelineVisible));
+    partial void OnIsCouncilTimelineOpenChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsCouncilTimelineVisible));
+        RefreshCouncilDock();
+    }
+
+    partial void OnReviewChanged(VerificationGateReport? value)
+    {
+        // Новый лист согласования разворачивает боковой док (свёрнутая полоса — только по выбору пользователя).
+        if (value is not null) IsCouncilDockCollapsed = false;
+        RefreshCouncilDock();
+    }
 
     [ObservableProperty]
     public partial bool IsReviewBusy { get; set; }

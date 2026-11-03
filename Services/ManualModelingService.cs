@@ -267,10 +267,15 @@ public static class ManualModelingService
             Size = [w, h, wall.Depth + ParametricSolverService.OpeningClearance],
             Rotation = [0, wall.RotationY, 0]
         };
+        // Проём не врезается в колонны и поперечные стены: сдвиг в свободный простенок (отступ 150 мм) или отказ без шага.
+        var guard = BuildingLogicGuard.Enforce(scene.Elements.ToList(), o);
+        if (!guard.Success) return ManualEditResult.Fail(guard.Message);
+        local = ArchitecturalElement.RotateY(o.X - wall.X, o.Z - wall.Z, -wall.RotationY).X;
         string step = $"Врезка проёма: {(door ? "дверь" : "окно")} {Mm(w)} × {Mm(h)} в «{wall.DisplayTitle}»";
         using (scene.BeginUndoTransaction(step))
             scene.AddElement(o);
-        return new ManualEditResult(true, $"{(door ? "Дверь" : "Окно")} {Mm(w)} × {Mm(h)} мм врезано в стену «{wall.DisplayTitle}» (смещение от середины {Mm(local)} мм)", step, [o], [wall]);
+        string note = guard.Message.Length > 0 ? $"; {guard.Message}" : string.Empty;
+        return new ManualEditResult(true, $"{(door ? "Дверь" : "Окно")} {Mm(w)} × {Mm(h)} мм врезано в стену «{wall.DisplayTitle}» (смещение от середины {Mm(local)} мм){note}", step, [o], [wall]);
     }
 
     // ───────────────────────────── Быстрые операции ─────────────────────────────

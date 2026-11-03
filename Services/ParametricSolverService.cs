@@ -12,6 +12,12 @@ public sealed class SolverInput
     public IReadOnlyList<ArchitecturalElement> ExistingElements { get; init; } = [];
     public IReadOnlyList<BuildingGroup> ExistingGroups { get; init; } = [];
     public string? SelectedElementId { get; init; }
+
+    /// <summary>
+    /// Строгая конструктивная логика проёмов (<see cref="BuildingLogicGuard"/>): сдвиг окон и дверей от колонн и поперечных стен,
+    /// отказ проёму без места в стене. Включает живое приложение; по умолчанию выключено — эталонные сцены считаются как раньше.
+    /// </summary>
+    public bool EnforceBuildingLogic { get; init; }
 }
 
 /// <summary>Результат солвера: готовые элементы и постройки + отчёт.</summary>
@@ -427,11 +433,27 @@ public sealed class ParametricSolverService
         else if (e.TaperScalePerFloor is < 0.85 or > 1.15) { e.TaperScalePerFloor = Math.Clamp(e.TaperScalePerFloor, 0.85, 1.15); fixedSomething = true; }
         e.Polygon2D = e.Polygon2D.Where(p => double.IsFinite(p.X) && double.IsFinite(p.Z)).ToList();
         if (e.Polygon2D.Count is > 0 and < 3) e.Polygon2D = [];
+        NormalizeWallAxis(run, e);
         if (fixedSomething)
         {
             run.Correct(e);
             run.Report.Warnings.Add($"Недопустимые значения у «{e.DisplayTitle}» приведены к допустимому диапазону");
         }
+    }
+
+    /// <summary>
+    /// Стена, заданная «поперёк» ([толщина, высота, длина] без поворота): длина лежит по локальной Z, а стыковка углов, привязка
+    /// проёмов и вырезы считают длиной W. Такая стена разворачивалась поперёк здания и ложилась на проём; здесь W и D меняются
+    /// местами с поворотом на −90° — положение и габарит в плане те же, локальная X снова вдоль стены.
+    /// </summary>
+    private static void NormalizeWallAxis(Run run, ArchitecturalElement e)
+    {
+        if (e.Type is not (ElementTypes.Wall or ElementTypes.CurtainWall) || e.Polygon2D.Count >= 3) return;
+        if (!(e.Depth >= 1.0 && e.Width <= 0.8 && e.Depth > 1.5 * e.Width)) return;
+        e.SetSize(e.Depth, e.Height, e.Width);
+        e.SetRotationY(ArchitecturalElement.NormalizeAngle(e.RotationY - 90));
+        run.Correct(e);
+        run.Report.Warnings.Add($"«{e.DisplayTitle}»: длина стены была задана по толщине — ось стены развёрнута вдоль её длины");
     }
 
     // ───────────────────────────── Развёртка высоток ─────────────────────────────
@@ -888,6 +910,23 @@ public sealed class ParametricSolverService
             o.HostElementId = host.Id;
             if (moved) run.Correct(o);
             attached++;
+
+            if (!run.Input.EnforceBuildingLogic || !BuildingLogicGuard.IsGuarded(o)) continue;
+            // Проём не врезается в колонны и поперечные стены: сдвиг в свободный простенок или отказ.
+            var guard = BuildingLogicGuard.Enforce(run.Elements, o);
+            if (!guard.Success)
+            {
+                run.Elements.Remove(o);
+                run.Meta.Remove(o);
+                attached--;
+                run.Report.Warnings.Add(guard.Message);
+                continue;
+            }
+            if (guard.Message.Length > 0)
+            {
+                run.Correct(o);
+                run.Report.Actions.Add(guard.Message);
+            }
         }
         run.Report.HostedOpenings = attached;
         if (attached > 0 || orphan > 0)

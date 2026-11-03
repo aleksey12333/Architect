@@ -375,6 +375,10 @@ public static partial class CadSelfTestService
         // ── Блок девелопера 3–4: библиотеки ГОСТ/СП, двухпроходная доводка и перегородки, ручное моделирование, журнал и версии, справка.
         report.AppendLine().AppendLine("═══ Блок девелопера 3–4: библиотека ГОСТ/СП, доводка каркаса, ручное моделирование, история и версии, справочный центр ═══");
         failures += await CheckDeveloperBlock34Async(directory, report);
+
+        // ── Волна 1: чистый старт, «Начальный экран», боковой док Коллоквиума, логика проёмов, полые кровли, конструктор лестниц.
+        report.AppendLine().AppendLine("═══ Волна 1: чистый старт и начальный экран, неперекрывающий Коллоквиум, честные проёмы, полые кровли, конструктор лестниц ═══");
+        failures += await CheckWave1Async(report);
         ReinforcementCalculator.StrictMinimum = strictMinimum;
 
         report.Insert(0, failures == 0 ? "ИТОГ: УСПЕХ — расхождений нет\n\n" : $"ИТОГ: ОШИБОК {failures}\n\n");

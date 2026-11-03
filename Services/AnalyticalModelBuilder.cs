@@ -593,6 +593,15 @@ public sealed class AnalyticalModelBuilder
             double d = e.Layers.Sum(l => l.WeightKPa * (l.Role == MaterialLayerRole.Structural ? StructuralNorms.GammaDead : StructuralNorms.GammaFinish));
             return (d, n);
         }
+        if (e.Category == BimCategory.Roof && !e.IsFlatRoof && RoofShapes.IsHollow(RoofShapes.Normalize(e.RoofShape)) &&
+            (e.Material ?? string.Empty).Contains("concrete", StringComparison.OrdinalIgnoreCase))
+        {
+            // Полая ж/б кровля: вес ската толщиной t на единицу площади плана (с учётом уклона).
+            double run0 = RoofShapes.IsShedLike(RoofShapes.Normalize(e.RoofShape)) ? Math.Min(e.Width, e.Depth) : Math.Min(e.Width, e.Depth) / 2;
+            double slope = Math.Sqrt(1 + Math.Pow(e.Height / Math.Max(0.1, run0), 2));
+            double sn = RoofDesign.SlabThickness(e) * slope * m.Material.Density * G;
+            return (sn * StructuralNorms.GammaDead, sn);
+        }
         if (e.Category == BimCategory.Roof && !e.IsFlatRoof)
         {
             // Скатная кровля без пирога: кровельное покрытие со стропильной системой (0.5 кПа; черепица — 0.9 кПа).
@@ -607,7 +616,7 @@ public sealed class AnalyticalModelBuilder
     private static double SnowMu(ArchitecturalElement e)
     {
         if (e.Category != BimCategory.Roof || e.IsFlatRoof) return 1;
-        double run = RoofShapes.Normalize(e.RoofShape) == RoofShapes.Shed ? Math.Min(e.Width, e.Depth) : Math.Min(e.Width, e.Depth) / 2;
+        double run = RoofShapes.IsShedLike(RoofShapes.Normalize(e.RoofShape)) ? Math.Min(e.Width, e.Depth) : Math.Min(e.Width, e.Depth) / 2;
         double angle = Math.Atan2(e.Height, Math.Max(0.1, run)) * 180 / Math.PI;
         return angle <= 30 ? 1 : angle >= 60 ? 0 : (60 - angle) / 30;
     }

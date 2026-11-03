@@ -63,6 +63,8 @@ public sealed partial class MainViewModel : ObservableObject
         ProjectFiles = projectFiles;
         CadExport = cadExport;
         _ai = ai;
+        // Живое приложение: строгая логика проёмов в ответах генератора (сдвиг от колонн, отказ проёму без места в стене).
+        _ai.EnforceBuildingLogic = true;
         _dispatcher = DispatcherQueue.GetForCurrentThread();
 
         var s = settings.Current;
@@ -103,6 +105,7 @@ public sealed partial class MainViewModel : ObservableObject
         InitializeCouncil(ai, councilGateway);
         InitializeOllama(ollama);
         InitializeAttachments();
+        InitializeWave1();
     }
 
     /// <summary>Стартовая сцена (шаблон стартового окна или Пресет 1 без оболочки): без записи в Undo и без пометки «изменено».</summary>
@@ -319,11 +322,16 @@ public sealed partial class MainViewModel : ObservableObject
 
         var model = SelectedModel;
         _ = UnloadLocalSafeAsync(model);
-        if (model.IsWeb)
-        {
-            WebBridgeSite = model.Provider;
-            IsWebBridgeOpen = true;
-        }
+        // Сайт веб-аккаунта запоминается, но панель (и процесс браузера WebView2) открывается только явным действием пользователя:
+        // восстановление модели из настроек или проекта не разворачивает онлайн-панель поверх чистого 3D-вида.
+        if (model.IsWeb) WebBridgeSite = model.Provider;
+    }
+
+    /// <summary>Выбор модели в меню капсулы (явное действие): веб-аккаунт сразу открывает свою панель.</summary>
+    public void SelectAiModelByUser(string id)
+    {
+        SelectedAiModel = id;
+        if (SelectedModel.IsWeb) IsWebBridgeOpen = true;
     }
 
     private async Task UnloadLocalSafeAsync(AiModelOption model)

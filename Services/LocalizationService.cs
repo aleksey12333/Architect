@@ -1076,7 +1076,7 @@ public sealed partial class LocalizationService : ObservableObject
 
     private static string Get(string key, string language)
     {
-        if (!Strings.TryGetValue(key, out var pair) && !LibraryStrings.TryGetValue(key, out pair)) return key;
+        if (!Strings.TryGetValue(key, out var pair) && !LibraryStrings.TryGetValue(key, out pair) && !Wave1Strings.TryGetValue(key, out pair)) return key;
         return language == English ? pair.En : pair.Ru;
     }
 }

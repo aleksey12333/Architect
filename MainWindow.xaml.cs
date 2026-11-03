@@ -48,6 +48,9 @@ public sealed partial class MainWindow : Window
         ViewModel.ViewportSnapshotProvider = longSide => Viewport.CaptureViewSnapshotAsync(longSide);
         ViewModel.AttachFileRequested += OnAttachFileRequested;
         ViewModel.PlanReconstructionRequested += OnPlanReconstructionRequested;
+        ViewModel.StartScreenRequested += OnStartScreenRequested;
+        ViewModel.CouncilDockChanged += (_, _) => UpdateAiDockMargin();
+        InspectorIsland.SizeChanged += (_, _) => UpdateAiDockMargin();
         InitializeBlock34();
 #if DEBUG
         ApplyDebugStartupOptions();
@@ -69,6 +72,50 @@ public sealed partial class MainWindow : Window
             WebBridgePanel.Shutdown();
         };
     }
+
+    /// <summary>
+    /// «Начальный экран»: при несохранённых изменениях — подтверждение, затем стартовое окно поверх редактора; выбор проекта или
+    /// шаблона применяется к этому же окну, закрытие стартового окна возвращает к проекту без изменений.
+    /// </summary>
+    private async void OnStartScreenRequested(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (ViewModel.Scene.IsDirty && RootGrid.XamlRoot is { } root)
+            {
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = root,
+                    Title = L.Get("W1StartConfirmTitle"),
+                    Content = new TextBlock { Text = L.Get("W1StartConfirm"), TextWrapping = TextWrapping.Wrap, MaxWidth = 420 },
+                    PrimaryButtonText = L.Get("W1Continue"),
+                    CloseButtonText = L.Get("W1Cancel"),
+                    DefaultButton = ContentDialogButton.Primary
+                };
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            }
+            (Application.Current as App)?.ShowStartScreenFromEditor();
+        }
+        catch (Exception ex)
+        {
+            App.WriteCrashLog("start-screen", ex);
+        }
+    }
+
+    /// <summary>
+    /// Боковой док сужает колонку холста: нижняя панель команд центрируется по свободной от развёрнутого инспектора части,
+    /// иначе её капсула наезжает на инспектор. Без дока отступы прежние.
+    /// </summary>
+    private void UpdateAiDockMargin()
+    {
+        bool reserve = ViewModel.IsCouncilDockVisible && !ViewModel.IsInspectorCollapsed && InspectorIsland.Visibility == Visibility.Visible;
+        double right = 14 + (reserve ? InspectorIsland.ActualWidth + 14 : 0);
+        var margin = new Thickness(14, 0, right, 16);
+        if (AiDock.Margin != margin) AiDock.Margin = margin;
+    }
+
+    /// <summary>Открыто ли стартовое окно из редактора (автотест кнопки «Начальный экран»).</summary>
+    internal static bool IsStartScreenOpen => App.StartScreenWindow is not null;
 
     /// <summary>
     /// Появление редактора после стартового окна: острова и холст проявляются (0 → 1) с лёгким увеличением парящих панелей.
@@ -228,7 +275,7 @@ public sealed partial class MainWindow : Window
             IsChecked = model.Id == ViewModel.SelectedAiModel,
             Icon = new FontIcon { Glyph = model.IsWeb ? "" : model.SupportsVision ? "" : AiModelCatalog.ProviderGlyph(model.Provider) }
         };
-        item.Click += (_, _) => ViewModel.SelectedAiModel = model.Id;
+        item.Click += (_, _) => ViewModel.SelectAiModelByUser(model.Id);
         return item;
     }
 
@@ -1197,6 +1244,15 @@ public sealed partial class MainWindow : Window
         // (+ AIA_DEBUG_REVIEWFOCUS=n — фокус на n-й правке, AIA_DEBUG_REVIEWUNCHECK=n — снять отметку n-й правки),
         // AIA_DEBUG_PLANBIM=demo|путь — окно реконструкции по поэтажному плану (demo — синтетический растровый план 16 × 10 м,
         // AIA_DEBUG_PLANSTOREYS=n), AIA_DEBUG_ATTACH=1 — авто-снимок вида, план во вложениях, индикатор достоверности и версии сцены.
+        // AIA_DEBUG_WAVE1=roof|guard — сцены волны 1: дом с полой мансардной кровлей и маршем на косоурах / проёмы, разведённые от колонн.
+        if (Env("WAVE1") is "roof" or "guard")
+            RootGrid.Loaded += async (_, _) =>
+            {
+                await Task.Delay(900);
+                var (w1Elements, w1Groups, w1Axes) = CadSelfTestService.CreateWave1DemoScene(Env("WAVE1")!);
+                ViewModel.Scene.LoadScene(w1Elements, w1Groups, recordUndo: false, clearHistory: true, axes: w1Axes, dimensions: []);
+                ViewModel.RequestZoomExtents();
+            };
         if (Env("REVIEW") == "1")
             RootGrid.Loaded += async (_, _) =>
             {

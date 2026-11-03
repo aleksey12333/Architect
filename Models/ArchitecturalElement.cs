@@ -157,7 +157,25 @@ public static class RoofShapes
     public const string Hip = "hip";
     public const string Shed = "shed";
 
+    // Полые конструкции кровли (скаты заданной толщины со свесами, чердак под ними) — только для новых и редактируемых кровель.
+    public const string GableHollow = "gable_hollow";
+    public const string HipHollow = "hip_hollow";
+    public const string ShedHollow = "shed_hollow";
+    public const string FlatParapet = "flat_parapet";
+    public const string Mansard = "mansard";
+    public const string BarrelVault = "barrel_vault";
+
     public static readonly IReadOnlyList<string> All = [Flat, Gable, Hip, Shed];
+
+    /// <summary>Шесть полых форм генератора кровель (порядок кнопок инспектора).</summary>
+    public static readonly IReadOnlyList<string> Hollow = [GableHollow, HipHollow, ShedHollow, FlatParapet, Mansard, BarrelVault];
+
+    public static bool IsHollow(string? shape) => shape is GableHollow or HipHollow or ShedHollow or FlatParapet or Mansard or BarrelVault;
+
+    /// <summary>Плоская форма (плита покрытия): прежняя плоская и плоская эксплуатируемая с парапетом.</summary>
+    public static bool IsFlatLike(string shape) => shape is Flat or FlatParapet;
+
+    public static bool IsShedLike(string shape) => shape is Shed or ShedHollow;
 
     public static string Normalize(string? raw, string fallback = Gable)
     {
@@ -168,6 +186,12 @@ public static class RoofShapes
             "gable" or "pitched" or "double" or "двускатная" or "двускатное" => Gable,
             "hip" or "hipped" or "вальмовая" or "шатровая" => Hip,
             "shed" or "mono" or "single" or "lean_to" or "односкатная" => Shed,
+            GableHollow or "gable_attic" => GableHollow,
+            HipHollow or "hip_attic" => HipHollow,
+            ShedHollow or "shed_eave" => ShedHollow,
+            FlatParapet or "flat_with_parapet" or "parapet" or "эксплуатируемая" => FlatParapet,
+            Mansard or "gambrel" or "мансардная" or "ломаная" => Mansard,
+            BarrelVault or "vault" or "barrel" or "arch" or "сводчатая" or "арочная" => BarrelVault,
             _ => fallback
         };
     }
@@ -944,7 +968,7 @@ public sealed class ArchitecturalElement : ObservableObject, IBimElement
 
     /// <summary>Плоская кровля (вырезаются отверстия slab_opening, экспорт — экструзией).</summary>
     [JsonIgnore]
-    public bool IsFlatRoof => _category == BimCategory.Roof && RoofShapes.Normalize(RoofShape) == RoofShapes.Flat;
+    public bool IsFlatRoof => _category == BimCategory.Roof && RoofShapes.IsFlatLike(RoofShapes.Normalize(RoofShape));
 
     /// <summary>Может ли элемент быть хостом отверстий плиты.</summary>
     [JsonIgnore]

@@ -13,7 +13,7 @@ public readonly record struct GeometryContext(int LevelFilter, double GroupOrigi
 /// разворачиваются поэтажно с закруткой TwistAnglePerFloor и сужением TaperScalePerFloor. Результат — независимая геометрия
 /// (<see cref="BimMesh"/>, System.Numerics) без типов графического движка; во вьюпорт её переносит HelixMeshAdapter.
 /// </summary>
-public static class ElementGeometryBuilder
+public static partial class ElementGeometryBuilder
 {
     private const float Rad = MathF.PI / 180f;
 
@@ -164,6 +164,10 @@ public static class ElementGeometryBuilder
             case ElementTypes.Shell:
                 set[mat].AddDome(-h / 2, w / 2, h, d / 2);
                 break;
+            case ElementTypes.Roof when RoofShapes.IsHollow(RoofShapes.Normalize(e.RoofShape)):
+                // Полая кровля: скаты заданной толщины со свесами, фронтоны, подшивка (или плоская с парапетом).
+                BuildHollowRoof(set, e, poly, SlabHoles(e, hosted, floorTransform), w, h, d, mat);
+                break;
             case ElementTypes.Roof when e.IsFlatRoof && e.Layers.Count > 0:
             {
                 // Пирог плоской кровли: ж/б, пароизоляция, утеплитель, разуклонка, гидроизоляция — снизу вверх.
@@ -176,7 +180,7 @@ public static class ElementGeometryBuilder
                 BuildRoof(set[mat], e, poly, SlabHoles(e, hosted, floorTransform), w, h, d);
                 break;
             case ElementTypes.Stairs:
-                BuildStairs(set[MaterialKind.Concrete], w, h, d, e.StepCount);
+                BuildStairElement(set, e, w, h, d);
                 break;
             case ElementTypes.Window:
                 BuildWindow(set, w, h, d);

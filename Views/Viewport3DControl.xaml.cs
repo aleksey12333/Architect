@@ -1174,8 +1174,11 @@ public sealed partial class Viewport3DControl : UserControl
             return;
         }
         if (_dragElement is null) return;
+        var moved = _dragUndoPushed && _dragGroup.Count <= 1 ? _dragElement : null;
         _dragElement = null;
         _dragDelta = 0;
+        // Окно или дверь после перетаскивания: в стену, с отступом от колонн и поперечных стен (иначе шаг откатывается).
+        if (moved is not null) _vm?.EnforceOpeningAfterMove(moved);
         ShowSnap(null);
         ShowHud();
         if (_viewport is null) return;

@@ -46,6 +46,12 @@ public sealed partial class MainViewModel
         {
             var (_, _, _, _, _, plan) = StairPlacement();
             var c = Loc.Culture;
+            var request = CurrentStairRequest();
+            if (request.Shape != StairShape.UShaped)
+            {
+                var g = StairGeneratorService.Build([], request, string.Empty, 0, 0, plan.FloorHeight, 0, 0, 0);
+                return Loc.Format("W1StairPreview", Mm(plan.FloorHeight), g.Risers, Mm(g.Riser), g.Flights.Count(), Mm(g.FootprintWidth), Mm(g.FootprintLength));
+            }
             return Loc.Format("StairToolPreview", Mm(plan.FloorHeight), plan.Risers, Mm(plan.Riser), plan.FirstFlightRisers, plan.SecondFlightRisers,
                 Mm(plan.TotalWidth), Mm(plan.TotalLength));
 

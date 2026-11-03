@@ -178,6 +178,7 @@ public sealed partial class MainWindow
         _tourCard = new Border { Style = (Style)Application.Current.Resources["IslandStyle"], Width = 360, Padding = new Thickness(16, 14, 16, 14) };
         canvas.Children.Add(_tourCard);
         _tourLayer.Children.Add(canvas);
+        Grid.SetColumnSpan(_tourLayer, 2);
         RootGrid.Children.Add(_tourLayer);
     }
 

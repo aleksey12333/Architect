@@ -13,6 +13,11 @@
     mc:Ignorable="d">
 
     <Grid x:Name="RootGrid" Background="{StaticResource ViewportBackgroundBrush}">
+        <!-- Колонка 0 — 3D-холст с парящими островами; колонка 1 — боковой док Коллоквиума (Auto: 0 / 48 / 414 px) -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
         <Grid.Resources>
             <!-- «Массив / Тиражировать»: линейный массив N × шаг X/Z (мм) и копирование этажа вверх (пилюля выделения и инспектор) -->
             <Flyout x:Key="ArrayFlyout" Placement="Bottom" FlyoutPresenterStyle="{StaticResource GlassFlyoutPresenterStyle}">
@@ -136,7 +141,7 @@
         </Border>
 
         <!-- ═══════════════ Верхний парящий бар ═══════════════ -->
-        <Border x:Name="TopBar" Style="{StaticResource IslandStyle}" Height="42" Margin="14,10,14,0" VerticalAlignment="Top" Padding="6,0">
+        <Border x:Name="TopBar" Grid.ColumnSpan="2" Style="{StaticResource IslandStyle}" Height="42" Margin="14,10,14,0" VerticalAlignment="Top" Padding="6,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -146,8 +151,15 @@
 
                 <!-- Слева: название и файл -->
                 <StackPanel x:Name="TopLeftTools" Grid.Column="0" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Left">
-                    <TextBlock Text="Architect Studio Pro" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,10,0"
+                    <TextBlock Text="Architect Studio Pro" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,6,0"
                                Foreground="{StaticResource TextPrimaryBrush}" />
+                    <!-- «Начальный экран»: стартовое окно (новый проект, шаблоны, недавние .aia) без перезапуска -->
+                    <Button x:Name="StartScreenButton" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.OpenStartScreenCommand}"
+                            AutomationProperties.Name="{x:Bind L.T('W1StartScreen', L.Language), Mode=OneWay}"
+                            ToolTipService.ToolTip="{x:Bind L.T('W1StartScreenTip', L.Language), Mode=OneWay}">
+                        <FontIcon Glyph="&#xE80F;" FontSize="14" />
+                    </Button>
+                    <Border Width="1" Height="18" Margin="2,0,4,0" VerticalAlignment="Center" Background="{StaticResource StudioBorderBrush}" />
                     <Button Style="{StaticResource IconButtonStyle}"
                             ToolTipService.ToolTip="{x:Bind L.T('OpenMenu', L.Language), Mode=OneWay}">
                         <FontIcon Glyph="&#xE8E5;" FontSize="14" />
@@ -1073,9 +1085,19 @@
                                         <FontIcon Glyph="{x:Bind ViewModel.StairToolGlyph}" FontSize="12" Foreground="{StaticResource AccentBrush}" />
                                     </Border>
                                     <TextBlock FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"
-                                               Text="{x:Bind L.T('StairTool', L.Language), Mode=OneWay}" />
+                                               Text="{x:Bind L.T('W1StairTitle', L.Language), Mode=OneWay}" />
                                 </StackPanel>
-                                <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind L.T('StairToolHint', L.Language), Mode=OneWay}" />
+                                <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind L.T('W1StairHint', L.Language), Mode=OneWay}" />
+                                <Grid ColumnSpacing="6" RowSpacing="5">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                                    <TextBlock FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind L.T('W1StairShape', L.Language), Mode=OneWay}" />
+                                    <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" Height="28" FontSize="12" CornerRadius="6" BorderThickness="0" Background="{StaticResource TrackBrush}"
+                                              ItemsSource="{x:Bind ViewModel.StairShapeTitles, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.StairShapeIndex, Mode=TwoWay}" />
+                                    <TextBlock Grid.Row="1" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind L.T('W1StairConstruction', L.Language), Mode=OneWay}" />
+                                    <ComboBox Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" Height="28" FontSize="12" CornerRadius="6" BorderThickness="0" Background="{StaticResource TrackBrush}"
+                                              ItemsSource="{x:Bind ViewModel.StairConstructionTitles, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.StairConstructionIndex, Mode=TwoWay}" />
+                                </Grid>
                                 <Border Style="{StaticResource CoordinateFieldStyle}" Background="{StaticResource HoverBrush}"
                                         ToolTipService.ToolTip="{x:Bind L.T('StairToolWidth', L.Language), Mode=OneWay}">
                                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
@@ -1086,7 +1108,7 @@
                                 </Border>
                                 <TextBlock FontSize="10" FontFamily="{StaticResource MonoFont}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"
                                            Text="{x:Bind ViewModel.StairToolPreviewText, Mode=OneWay}" />
-                                <Button Style="{StaticResource PanelButtonStyle}" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.GenerateUShapedStairCommand}">
+                                <Button Style="{StaticResource PanelButtonStyle}" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.GenerateStairCommand}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <FontIcon Glyph="&#xE710;" FontSize="11" />
                                         <TextBlock FontSize="12" Text="{x:Bind ViewModel.StairToolButtonText, Mode=OneWay}" />
@@ -1102,9 +1124,9 @@
                                         <FontIcon Glyph="{x:Bind ViewModel.RoofToolGlyph}" FontSize="12" Foreground="{StaticResource AccentBrush}" />
                                     </Border>
                                     <TextBlock FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"
-                                               Text="{x:Bind L.T('RoofTool', L.Language), Mode=OneWay}" />
+                                               Text="{x:Bind L.T('W1RoofTitle', L.Language), Mode=OneWay}" />
                                 </StackPanel>
-                                <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind L.T('RoofToolHint', L.Language), Mode=OneWay}" />
+                                <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind L.T('W1RoofHint', L.Language), Mode=OneWay}" />
                                 <Border Style="{StaticResource CoordinateFieldStyle}" Background="{StaticResource HoverBrush}">
                                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
                                         <TextBlock FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind L.T('RoofToolAngle', L.Language), Mode=OneWay}" />
@@ -1114,12 +1136,35 @@
                                 </Border>
                                 <TextBlock FontSize="10" FontFamily="{StaticResource MonoFont}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"
                                            Text="{x:Bind ViewModel.RoofToolPreviewText, Mode=OneWay}" />
-                                <Grid ColumnSpacing="6">
-                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
-                                    <Button Style="{StaticResource PanelButtonStyle}" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.MakePitchedRoofCommand}" CommandParameter="gable"
-                                            Content="{x:Bind L.T('RoofToolGable', L.Language), Mode=OneWay}" />
-                                    <Button Grid.Column="1" Style="{StaticResource PanelButtonStyle}" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.MakePitchedRoofCommand}" CommandParameter="hip"
-                                            Content="{x:Bind L.T('RoofToolHip', L.Language), Mode=OneWay}" />
+                                <Border Style="{StaticResource CoordinateFieldStyle}" Background="{StaticResource HoverBrush}">
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                        <TextBlock FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind L.T('W1RoofThickness', L.Language), Mode=OneWay}" />
+                                        <NumberBox Grid.Column="1" Style="{StaticResource CoordinateNumberBoxStyle}" Minimum="80" Maximum="600" SmallChange="10" LargeChange="50"
+                                                   Value="{x:Bind ViewModel.RoofSlabThicknessMm, Mode=TwoWay}" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource CoordinateFieldStyle}" Background="{StaticResource HoverBrush}">
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                        <TextBlock FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind L.T('W1RoofOverhang', L.Language), Mode=OneWay}" />
+                                        <NumberBox Grid.Column="1" Style="{StaticResource CoordinateNumberBoxStyle}" Minimum="0" Maximum="1500" SmallChange="50" LargeChange="100"
+                                                   Value="{x:Bind ViewModel.RoofOverhangMm, Mode=TwoWay}" />
+                                    </Grid>
+                                </Border>
+                                <Grid ColumnSpacing="6" RowSpacing="6">
+                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                                    <Button Style="{StaticResource PanelButtonStyle}" HorizontalAlignment="Stretch" Padding="4,0" FontSize="11" Command="{x:Bind ViewModel.MakeHollowRoofCommand}" CommandParameter="gable_hollow"
+                                            Content="{x:Bind L.T('W1Roof_gable_hollow', L.Language), Mode=OneWay}" />
+                                    <Button Grid.Column="1" Style="{StaticResource PanelButtonStyle}" HorizontalAlignment="Stretch" Padding="4,0" FontSize="11" Command="{x:Bind ViewModel.MakeHollowRoofCommand}" CommandParameter="hip_hollow"
+                                            Content="{x:Bind L.T('W1Roof_hip_hollow', L.Language), Mode=OneWay}" />
+                                    <Button Grid.Column="2" Style="{StaticResource PanelButtonStyle}" HorizontalAlignment="Stretch" Padding="4,0" FontSize="11" Command="{x:Bind ViewModel.MakeHollowRoofCommand}" CommandParameter="shed_hollow"
+                                            Content="{x:Bind L.T('W1Roof_shed_hollow', L.Language), Mode=OneWay}" />
+                                    <Button Grid.Row="1" Style="{StaticResource PanelButtonStyle}" HorizontalAlignment="Stretch" Padding="4,0" FontSize="11" Command="{x:Bind ViewModel.MakeHollowRoofCommand}" CommandParameter="flat_parapet"
+                                            Content="{x:Bind L.T('W1Roof_flat_parapet', L.Language), Mode=OneWay}" />
+                                    <Button Grid.Row="1" Grid.Column="1" Style="{StaticResource PanelButtonStyle}" HorizontalAlignment="Stretch" Padding="4,0" FontSize="11" Command="{x:Bind ViewModel.MakeHollowRoofCommand}" CommandParameter="mansard"
+                                            Content="{x:Bind L.T('W1Roof_mansard', L.Language), Mode=OneWay}" />
+                                    <Button Grid.Row="1" Grid.Column="2" Style="{StaticResource PanelButtonStyle}" HorizontalAlignment="Stretch" Padding="4,0" FontSize="11" Command="{x:Bind ViewModel.MakeHollowRoofCommand}" CommandParameter="barrel_vault"
+                                            Content="{x:Bind L.T('W1Roof_barrel_vault', L.Language), Mode=OneWay}" />
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -1782,20 +1827,25 @@
             </StackPanel>
         </Border>
 
+        <!-- ═══ Боковой док Коллоквиума: колонка справа от вьюпорта (3D-холст всегда открыт, вращается и принимает клики) ═══ -->
+        <Grid x:Name="CouncilDock" Grid.Column="1" Margin="0,62,14,16" UseLayoutRounding="True"
+              Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsCouncilDockVisible), Mode=OneWay}">
+        <Grid x:Name="CouncilDockExpanded" Width="400" Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsCouncilDockExpanded), Mode=OneWay}">
         <!-- ═══ Совет КБ: лента «Ход мысли Совета» (реплики агентов: роль, модель, время ответа, найдено/исправлено) ═══ -->
         <!-- Лёгкое матовое стекло без жёсткой рамки: прозрачнее островов, мягкая тень вместо обводки -->
-        <Border x:Name="CouncilTimelinePanel" Style="{StaticResource SoftGlassStyle}" Padding="12,10,8,10" UseLayoutRounding="True" Width="384" MaxHeight="640"
-                HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="14,0,0,16" Translation="0,0,24"
+        <Border x:Name="CouncilTimelinePanel" Style="{StaticResource SoftGlassStyle}" Padding="12,10,8,10" UseLayoutRounding="True"
+                VerticalAlignment="Stretch" Translation="0,0,24"
                 Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsCouncilTimelineVisible), Mode=OneWay}">
                 <Grid RowSpacing="6">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
@@ -1808,14 +1858,19 @@
                                 ToolTipService.ToolTip="{x:Bind L.T('CouncilClear', L.Language), Mode=OneWay}">
                             <FontIcon Glyph="&#xE74D;" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
                         </Button>
-                        <Button Grid.Column="3" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.ToggleCouncilTimelineCommand}">
+                        <Button Grid.Column="3" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.ToggleCouncilDockCollapsedCommand}"
+                                ToolTipService.ToolTip="{x:Bind L.T('W1DockCollapse', L.Language), Mode=OneWay}">
+                            <FontIcon Glyph="&#xE76C;" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                        </Button>
+                        <Button Grid.Column="4" Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.CloseCouncilDockCommand}"
+                                ToolTipService.ToolTip="{x:Bind L.T('W1DockClose', L.Language), Mode=OneWay}">
                             <FontIcon Glyph="&#xE711;" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
                         </Button>
                     </Grid>
                     <TextBlock Grid.Row="1" FontSize="11" TextWrapping="Wrap" Margin="2,0,8,2" Foreground="{StaticResource TextSecondaryBrush}"
                                Visibility="{x:Bind local:XamlHelpers.VisNot(ViewModel.HasCouncilTimeline), Mode=OneWay}"
                                Text="{x:Bind L.T('CouncilEmptyTimeline', L.Language), Mode=OneWay}" />
-                    <ListView x:Name="CouncilTimelineList" Grid.Row="1" MaxHeight="560" SelectionMode="None" IsItemClickEnabled="False"
+                    <ListView x:Name="CouncilTimelineList" Grid.Row="1" VerticalAlignment="Top" SelectionMode="None" IsItemClickEnabled="False"
                               ItemsSource="{x:Bind ViewModel.CouncilTimeline}">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
@@ -1884,8 +1939,26 @@
             </Border>
 
         <!-- ═══ Коллоквиум: «Проверка достоверности · Лист согласования правок» (сцена внешнего генератора → локальный аудитор) ═══ -->
-        <views:ColloquiumReviewPanel x:Name="ReviewPanel" Width="456" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="14,0,0,16"
+        <views:ColloquiumReviewPanel x:Name="ReviewPanel" VerticalAlignment="Stretch"
                                      Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsReviewOpen), Mode=OneWay}" />
+        </Grid>
+
+        <!-- Свёрнутый док: полоса 48 px с числом реплик / правок и кнопкой разворота -->
+        <Border x:Name="CouncilDockStrip" Style="{StaticResource IslandStyle}" Width="48" Padding="4,8" VerticalAlignment="Top"
+                Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsCouncilDockStrip), Mode=OneWay}">
+            <StackPanel Spacing="8" HorizontalAlignment="Center">
+                <Button Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.ToggleCouncilDockCollapsedCommand}"
+                        ToolTipService.ToolTip="{x:Bind L.T('W1DockExpand', L.Language), Mode=OneWay}">
+                    <FontIcon Glyph="&#xE76B;" FontSize="12" />
+                </Button>
+                <Border Width="28" Height="28" CornerRadius="14" HorizontalAlignment="Center" Background="{StaticResource AccentSoftBrush}">
+                    <FontIcon Glyph="&#xE8F2;" FontSize="12" Foreground="{StaticResource AccentBrush}" />
+                </Border>
+                <TextBlock HorizontalAlignment="Center" FontSize="11" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource TextSecondaryBrush}"
+                           Text="{x:Bind ViewModel.CouncilDockBadge, Mode=OneWay}" />
+            </StackPanel>
+        </Border>
+        </Grid>
 
         <!-- ═══════════════ Нижний док «Панель команд» BIM-Координатора (Apple Spotlight) ═══════════════ -->
         <StackPanel x:Name="AiDock" UseLayoutRounding="True" MaxWidth="600" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Margin="14,0,14,16" Spacing="8">
