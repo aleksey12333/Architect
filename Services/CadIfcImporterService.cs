@@ -1227,10 +1227,14 @@ public sealed class CadIfcImporterService
     /// </summary>
     private static bool BuildGeometry(ArchitecturalElement el, List<Solid> solids, Dictionary<string, object?>? props, ImportContext ctx)
     {
-        var main = solids.FirstOrDefault(s => s.IsExtrusion) ?? solids[0];
         double? pW = props?.GetValueOrDefault("Width") as double?, pH = props?.GetValueOrDefault("Height") as double?, pD = props?.GetValueOrDefault("Depth") as double?;
         double? pRot = props?.GetValueOrDefault("RotationY") as double?;
         if (props?.GetValueOrDefault("RoofShape") is string roofShape) el.RoofShape = RoofShapes.Normalize(roofShape);
+        // Плоская кровля с парапетом собственного экспорта: первое тело — плита покрытия, второе — кольцо парапета (форма и высота
+        // парапета восстанавливаются из RoofShape и свойств пользователя, а не из габарита обоих тел).
+        if (el.Type == ElementTypes.Roof && el.RoofShape == RoofShapes.FlatParapet && solids.Count >= 2 && solids.All(s => s.IsExtrusion))
+            solids = [solids[0]];
+        var main = solids.FirstOrDefault(s => s.IsExtrusion) ?? solids[0];
         bool singleExtrusion = solids.Count(s => s.IsExtrusion) == 1 && solids.All(s => s.IsExtrusion);
 
         if (main.IsExtrusion && singleExtrusion && Math.Abs(main.Direction.Z) > 0.99)
@@ -1354,7 +1358,25 @@ public sealed class CadIfcImporterService
         if (el.Type == ElementTypes.Roof && props?.ContainsKey("RoofShape") != true)
             el.RoofShape = RoofFromNormals(solids.SelectMany(s => s.FaceNormals ?? []).ToList());
         ApplyOwnSizes(el, pW, pH, pD);
+        if (props?.GetValueOrDefault("Polygon2D") is string outline && ParseOutline(outline) is { Count: >= 3 } contour) el.Polygon2D = contour;
+        if (props?.GetValueOrDefault("Origin") is string origin && origin.Split(' ', StringSplitOptions.RemoveEmptyEntries) is { Length: 3 } o &&
+            o.All(v => double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out _)))
+            el.SetPosition(double.Parse(o[0], CultureInfo.InvariantCulture), double.Parse(o[1], CultureInfo.InvariantCulture), double.Parse(o[2], CultureInfo.InvariantCulture));
         return el.Width > 1e-4 && el.Height > 1e-4;
+    }
+
+    /// <summary>Контур «x z;x z;…» (м, локальные координаты элемента) из свойства Polygon2D собственного экспорта.</summary>
+    private static List<Point2D>? ParseOutline(string text)
+    {
+        var result = new List<Point2D>();
+        foreach (string pair in text.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = pair.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2 || !double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double x) ||
+                !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double z)) return null;
+            result.Add(new Point2D(x, z));
+        }
+        return result;
     }
 
     /// <summary>Габарит всех тел в системе, повёрнутой на angle (градусы сцены).</summary>

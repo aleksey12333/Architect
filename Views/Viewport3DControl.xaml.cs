@@ -154,6 +154,7 @@ public sealed partial class Viewport3DControl : UserControl
         _vm.ClashHighlightChanged -= OnClashHighlightChanged;
         _vm.ClashFocusRequested -= OnClashFocusRequested;
         _vm.SolarChanged -= OnSolarChanged;
+        _vm.StructuralOverlayChanged -= OnStructuralOverlayChanged;
         _scene.SelectionChanged -= OnSelectionChanged;
         _scene.DimensionsChanged -= OnDimensionsChanged;
         _stressTimer?.Stop();
@@ -241,6 +242,7 @@ public sealed partial class Viewport3DControl : UserControl
         _viewport.Items.Add(_overlayGroup);
         _viewport.Items.Add(_clashGroup);
         _viewport.Items.Add(_rebarGroup);
+        _viewport.Items.Add(_structuralGroup);
         _viewport.Items.Add(_measureGroup);
         _viewport.Items.Add(_measureLiveGroup);
         _viewport.Items.Add(_snapGroup);
@@ -288,6 +290,7 @@ public sealed partial class Viewport3DControl : UserControl
         _vm.ClashHighlightChanged += OnClashHighlightChanged;
         _vm.ClashFocusRequested += OnClashFocusRequested;
         _vm.SolarChanged += OnSolarChanged;
+        _vm.StructuralOverlayChanged += OnStructuralOverlayChanged;
         _scene.SelectionChanged += OnSelectionChanged;
         _scene.DimensionsChanged += OnDimensionsChanged;
     }
@@ -325,6 +328,10 @@ public sealed partial class Viewport3DControl : UserControl
             case nameof(MainViewModel.IsRebarView):
             case nameof(MainViewModel.Modules):
                 QueueRebarRebuild();
+                break;
+            case nameof(MainViewModel.IsStructuralMode):
+                ApplyStress(animate: _vm!.IsStructuralMode);
+                QueueStructuralRebuild();
                 break;
         }
     }
@@ -403,9 +410,10 @@ public sealed partial class Viewport3DControl : UserControl
                 if ((known ?? _scene.FindById(id)) is { } el) AddElementModels(el);
             }
             ApplyFillMode();
-            if (_vm?.IsStressMapEnabled == true) ApplyStress(animate: false);
+            if (StressColoring) ApplyStress(animate: false);
             RebuildClashHighlight();
             QueueRebarRebuild();
+            QueueStructuralRebuild();
         }
 
         RebuildAxes();
@@ -518,10 +526,11 @@ public sealed partial class Viewport3DControl : UserControl
 
         ApplyFillMode();
         RebuildAxes();
-        if (_vm?.IsStressMapEnabled == true) ApplyStress(animate: false);
+        if (StressColoring) ApplyStress(animate: false);
         UpdateSelectionVisuals();
         RebuildClashHighlight();
         QueueRebarRebuild();
+        QueueStructuralRebuild();
 
         // Камера «показать всё» при загрузке новой сцены (полная замена набора элементов).
         var ids = _scene.Elements.Select(e => e.Id).ToHashSet();
@@ -1452,6 +1461,7 @@ public sealed partial class Viewport3DControl : UserControl
     private Color4 StressTarget(ArchitecturalElement el, MaterialKind kind, StructuralAnalysisResult analysis)
     {
         if (kind == MaterialKind.Void || _vm is null) return StressPalette.Ghost;
+        if (StructuralBodyColor(el) is { } structural) return structural;
         var r = analysis.For(el.Id);
         double? k = _vm.StressMode switch
         {
@@ -1469,7 +1479,7 @@ public sealed partial class Viewport3DControl : UserControl
     private void ApplyStress(bool animate)
     {
         if (_viewport is null || _vm is null) return;
-        bool on = _vm.IsStressMapEnabled;
+        bool on = StressColoring;
         _viewport.ShowCoordinateSystem = !on && _vm.ViewMode == ViewportMode.Perspective3D && _sectionCameraFace is null;
         if (!on)
         {

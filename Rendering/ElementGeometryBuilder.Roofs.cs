@@ -191,6 +191,12 @@ public static partial class ElementGeometryBuilder
 
         float t = (float)RoofDesign.SlabThickness(e), o = (float)RoofDesign.Overhang(e);
         if (shape == RoofShapes.BarrelVault) o = 0;
+        if (UsesPolygonRoof(shape, poly) && BuildPolygonRoofModel(shape, poly!, h, t, o) is { } model)
+        {
+            // Непрямоугольный контур (Г-, П-, Т-образная секция): скаты, свес и фронтоны строго по рёбрам Polygon2D.
+            BuildPolygonHollowRoof(set, e, model, mat);
+            return;
+        }
         var frame = FrameOf(poly, w, d, alignLong: shape != RoofShapes.ShedHollow);
         float y0 = -h / 2, s = frame.Span / 2, lx = frame.Length / 2;
         var savedSet = set.Transform;
@@ -353,26 +359,35 @@ public static partial class ElementGeometryBuilder
         }
     }
 
-    /// <summary>Плоская эксплуатируемая кровля: плита покрытия (пирог, отверстия) и контурный ж/б парапет по внутренней грани контура.</summary>
+    /// <summary>
+    /// Контуры плоской кровли с парапетом (локальные x, z, против часовой): плита — контур элемента (Polygon2D или W × D), парапет —
+    /// кольцо между ним и его смещением внутрь на толщину парапета (миттер в каждой вершине: без нахлёста и щелей в углах).
+    /// </summary>
+    public static (List<Vector2> Slab, List<Vector2> ParapetInner) ParapetRoofOutlines(ArchitecturalElement e)
+    {
+        float w = (float)Math.Max(0.01, e.Width), d = (float)Math.Max(0.01, e.Depth);
+        var slab = MeshAccumulator.EnsureCounterClockwise(PolygonOf(e) ?? Rect(w, d));
+        return (slab, OffsetOutline(slab, -(float)RoofDesign.ParapetThickness));
+    }
+
+    /// <summary>Плоская эксплуатируемая кровля: плита покрытия (пирог, отверстия) и контурный ж/б парапет вдоль всех рёбер контура.</summary>
     private static void BuildParapetRoof(PartSet set, ArchitecturalElement e, List<Vector2>? poly, List<IReadOnlyList<Vector2>> holes, float w, float h, float d, MaterialKind mat)
     {
+        var (slab, inner) = ParapetRoofOutlines(e);
         if (e.Layers.Count > 0)
             foreach (var (layer, y0, y1) in LayerBands(e.Layers, -h / 2, h / 2, fromTop: false))
                 AddSlabBand(set[MaterialCatalog.LayerKind(layer, mat)], poly, holes, w, d, y0, y1);
         else AddSlabBand(set[mat], poly, holes, w, d, -h / 2, h / 2);
 
-        float ph = (float)RoofDesign.ParapetHeight(e), pt = (float)RoofDesign.ParapetThickness;
-        var outline = MeshAccumulator.EnsureCounterClockwise(poly ?? Rect(w, d));
+        // Кольцо парапета: трапеции между ребром контура и ребром его смещения внутрь — без нахлёста в выпуклых углах и
+        // без щели во входящих (Г- и П-образные секции).
+        float ph = (float)RoofDesign.ParapetHeight(e);
         var concrete = set[MaterialKind.Concrete];
-        for (int i = 0; i < outline.Count; i++)
+        for (int i = 0; i < slab.Count; i++)
         {
-            var p = outline[i];
-            var q = outline[(i + 1) % outline.Count];
-            var dir = q - p;
-            if (BimMath.LengthSquared(dir) < 1e-6f) continue;
-            var u = BimMath.Normalize(dir);
-            var inward = new Vector2(-u.Y, u.X) * pt;
-            concrete.AddPrism([p, q, q + inward, p + inward], h / 2, h / 2 + ph);
+            int j = (i + 1) % slab.Count;
+            if (BimMath.LengthSquared(slab[j] - slab[i]) < 1e-6f) continue;
+            concrete.AddPrism([slab[i], slab[j], inner[j], inner[i]], h / 2, h / 2 + ph);
         }
     }
 
@@ -392,6 +407,17 @@ public static partial class ElementGeometryBuilder
             if (part.Material == structure || part.Material == cover) shell += MeshVolume(part.Mesh);
         double t = RoofDesign.SlabThickness(e), o = shape == RoofShapes.BarrelVault ? 0 : RoofDesign.Overhang(e);
         var poly = PolygonOf(e);
+        if (UsesPolygonRoof(shape, poly) && BuildPolygonRoofModel(shape, poly!, (float)e.Height, (float)t, (float)o) is { } model)
+        {
+            double slopeArea = PiecesArea(model) * Math.Sqrt(1 + (double)model.Slope * model.Slope);
+            return new HollowRoofInfo(shape, model.Slope, model.Wings.Max(w => w.HalfSpan), o, t, slopeArea, shell, PiecesSolidVolume(model));
+        }
+        if (shape == RoofShapes.FlatParapet && poly is not null)
+        {
+            var (slabOutline, _) = ParapetRoofOutlines(e);
+            double plate = Math.Abs(SignedArea2(slabOutline));
+            return new HollowRoofInfo(shape, 0, 0, 0, e.Height, plate, shell, plate * e.Height);
+        }
         var frame = FrameOf(poly, (float)e.Width, (float)e.Depth, shape != RoofShapes.ShedHollow);
         double s = frame.Span / 2, length = frame.Length + 2 * o, h = e.Height;
         double k, area;

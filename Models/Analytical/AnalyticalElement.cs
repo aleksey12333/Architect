@@ -117,6 +117,12 @@ public abstract class AnalyticalElement
     /// <summary>Момент инерции для распределения горизонтальных сил между стойками, м⁴ (стена — в своей плоскости).</summary>
     public double LateralInertia;
 
+    /// <summary>Коэффициент расчётной длины μ по закреплению концов стойки (<see cref="StructuralDesign"/>); 0 — по материалу (ж/б 0,7, прочие 1,0).</summary>
+    public double LengthFactor;
+
+    /// <summary>Поперечная арматура продавливания плиты: q_sw, кН/м контура (0 — нет, F_sw,ult не учитывается).</summary>
+    public double PunchingQsw;
+
     /// <summary>Квадратурные точки фундамента / ненесущей площадки (вес — площадь).</summary>
     public List<(double X, double Z, double A)>? Samples;
 

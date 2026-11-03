@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using AIArchitectStudio.Models;
@@ -106,6 +106,7 @@ public sealed partial class MainViewModel : ObservableObject
         InitializeOllama(ollama);
         InitializeAttachments();
         InitializeWave1();
+        InitializeWave2();
     }
 
     /// <summary>Стартовая сцена (шаблон стартового окна или Пресет 1 без оболочки): без записи в Undo и без пометки «изменено».</summary>
@@ -140,20 +141,35 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool IsPerspectiveMode
     {
-        get => ViewMode == ViewportMode.Perspective3D;
-        set { if (value) ViewMode = ViewportMode.Perspective3D; }
+        get => ViewMode == ViewportMode.Perspective3D && !IsStructuralMode;
+        set
+        {
+            if (!value) return;
+            IsStructuralMode = false;
+            ViewMode = ViewportMode.Perspective3D;
+        }
     }
 
     public bool IsPlanMode
     {
         get => ViewMode == ViewportMode.Plan2D;
-        set { if (value) ViewMode = ViewportMode.Plan2D; }
+        set
+        {
+            if (!value) return;
+            IsStructuralMode = false;
+            ViewMode = ViewportMode.Plan2D;
+        }
     }
 
     public bool IsSectionMode
     {
         get => ViewMode == ViewportMode.Section2D;
-        set { if (value) ViewMode = ViewportMode.Section2D; }
+        set
+        {
+            if (!value) return;
+            IsStructuralMode = false;
+            ViewMode = ViewportMode.Section2D;
+        }
     }
 
     public string ViewModeTitle => ViewMode switch
@@ -852,12 +868,14 @@ public sealed partial class MainViewModel : ObservableObject
             Scene.MoveGroup(group, starts, direction[0] == 'x' ? step : 0, direction[0] == 'y' ? step : 0, direction[0] == 'z' ? step : 0);
             return;
         }
+        var before = OpeningState(el);
         switch (direction[0])
         {
             case 'x': Scene.Translate(el, step, 0, 0); break;
             case 'y': Scene.Translate(el, 0, step, 0); break;
             case 'z': Scene.Translate(el, 0, 0, step); break;
         }
+        if (OpeningState(el) != before) EnforceOpeningAfterInspector(el);
     }
 
     public void SelectElement(ArchitecturalElement? element) => Scene.SelectedElement = element;
@@ -941,9 +959,12 @@ public sealed partial class MainViewModel : ObservableObject
             ApplyBatchInspector(el);
             return;
         }
+        var before = OpeningState(el);
         Scene.SetTransform(el, PosX, PosY, PosZ, SizeW, SizeH, SizeD, RotY, (int)Math.Round(LevelValue));
         // Толщина, заданная вручную, переходит в несущий слой пирога (остальные слои сохраняются).
         AbsorbInspectorThickness(el);
+        // Окно/дверь, сдвинутые с клавиатуры в колонну, поперечную стену или за пределы стены, — та же логика проёмов, что у Gizmo.
+        if (OpeningState(el) != before) EnforceOpeningAfterInspector(el);
     }
 
     private void SyncInspector()
@@ -1534,7 +1555,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var axes = Scene.GridAxes.Select(a => a.Clone()).ToList();
             var dimensions = Scene.PinnedDimensions.Select(d => d.Clone()).ToList();
-            var result = await CadExport.ExportAsync(format, path, elements, groups, Scene.ProjectName, axes, dimensions);
+            var result = await CadExport.ExportAsync(format, path, elements, groups, Scene.ProjectName, axes, dimensions, baseQuantities: true);
             var report = new SolverReport
             {
                 Success = true,

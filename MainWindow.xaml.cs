@@ -52,6 +52,7 @@ public sealed partial class MainWindow : Window
         ViewModel.CouncilDockChanged += (_, _) => UpdateAiDockMargin();
         InspectorIsland.SizeChanged += (_, _) => UpdateAiDockMargin();
         InitializeBlock34();
+        InitializeWave2();
 #if DEBUG
         ApplyDebugStartupOptions();
 #endif
@@ -108,8 +109,10 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void UpdateAiDockMargin()
     {
-        bool reserve = ViewModel.IsCouncilDockVisible && !ViewModel.IsInspectorCollapsed && InspectorIsland.Visibility == Visibility.Visible;
-        double right = 14 + (reserve ? InspectorIsland.ActualWidth + 14 : 0);
+        // Режим «Конструкции»: панель конструктора стоит слева от инспектора — панель команд центрируется левее обеих.
+        bool structural = ViewModel.IsStructuralMode && !ViewModel.IsInspectorCollapsed;
+        bool reserve = (ViewModel.IsCouncilDockVisible || structural) && !ViewModel.IsInspectorCollapsed && InspectorIsland.Visibility == Visibility.Visible;
+        double right = 14 + (reserve ? InspectorIsland.ActualWidth + 14 : 0) + (structural ? StructuralPanel.Width + 14 : 0);
         var margin = new Thickness(14, 0, right, 16);
         if (AiDock.Margin != margin) AiDock.Margin = margin;
     }

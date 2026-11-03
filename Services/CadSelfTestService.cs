@@ -379,6 +379,10 @@ public static partial class CadSelfTestService
         // ── Волна 1: чистый старт, «Начальный экран», боковой док Коллоквиума, логика проёмов, полые кровли, конструктор лестниц.
         report.AppendLine().AppendLine("═══ Волна 1: чистый старт и начальный экран, неперекрывающий Коллоквиум, честные проёмы, полые кровли, конструктор лестниц ═══");
         failures += await CheckWave1Async(report);
+
+        // ── Волна 2: долги волны 1, логический аудит КЭ-расчёта, режим «Конструкции», свойства Renga, мастер размеров, размеры ГОСТ.
+        report.AppendLine().AppendLine("═══ Волна 2: долги волны 1, аудит КЭ-расчёта и напряжения, режим «Конструкции», свойства Renga, мастер размеров, размерные цепочки ГОСТ ═══");
+        failures += await CheckWave2Async(directory, report);
         ReinforcementCalculator.StrictMinimum = strictMinimum;
 
         report.Insert(0, failures == 0 ? "ИТОГ: УСПЕХ — расхождений нет\n\n" : $"ИТОГ: ОШИБОК {failures}\n\n");

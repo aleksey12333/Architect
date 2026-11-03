@@ -137,6 +137,10 @@
                         ToolTipService.ToolTip="{x:Bind L.T('LibOpenTip', L.Language), Mode=OneWay}">
                     <FontIcon Glyph="&#xE8F1;" FontSize="14" Foreground="{StaticResource AccentBrush}" />
                 </Button>
+                <Button x:Name="DimensionsButton" Command="{x:Bind ViewModel.OpenBuildingDimensionsCommand}" Style="{StaticResource IconButtonStyle}"
+                        ToolTipService.ToolTip="{x:Bind L.T('W2DimsTip', L.Language), Mode=OneWay}">
+                    <FontIcon Glyph="&#xE740;" FontSize="14" />
+                </Button>
             </StackPanel>
         </Border>
 
@@ -256,6 +260,12 @@
                                          IsChecked="{x:Bind ViewModel.IsSectionMode, Mode=TwoWay}"
                                          Content="{x:Bind L.T('ViewSection', L.Language), Mode=OneWay}"
                                          ToolTipService.ToolTip="{x:Bind L.T('ViewSectionTitle', L.Language), Mode=OneWay}" />
+                            <!-- Режим «Конструкции (КЖ / КМ)»: аналитический оверлей и панель конструктора -->
+                            <RadioButton x:Name="StructuralSegment" GroupName="ViewMode" Style="{StaticResource SegmentRadioStyle}" MinWidth="52"
+                                         Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsStructuralModeAvailable), Mode=OneWay}"
+                                         IsChecked="{x:Bind ViewModel.IsStructuralSegment, Mode=TwoWay}"
+                                         Content="{x:Bind L.T('W2StructuralMode', L.Language), Mode=OneWay}"
+                                         ToolTipService.ToolTip="{x:Bind L.T('W2StructuralModeTip', L.Language), Mode=OneWay}" />
                         </StackPanel>
                     </Border>
                     <!-- Инструменты архитектора и инженера скрываются профилем «Эскизы и идеи» / «Архитектура» -->
@@ -322,10 +332,8 @@
                     </ToggleButton>
                     <ToggleButton x:Name="WalkToggle" Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsWalkthrough, Mode=TwoWay}"
                                   ToolTipService.ToolTip="{x:Bind L.T('WalkthroughFull', L.Language), Mode=OneWay}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE805;" FontSize="13" />
-                            <TextBlock Text="{x:Bind L.T('Walkthrough', L.Language), Mode=OneWay}" FontSize="12" VerticalAlignment="Center" />
-                        </StackPanel>
+                        <!-- Только глиф: место в баре занимает сегмент «Конструкции»; подпись — в подсказке -->
+                        <FontIcon Glyph="&#xE805;" FontSize="14" />
                     </ToggleButton>
                     <Button Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.ZoomToFitCommand}"
                             ToolTipService.ToolTip="{x:Bind L.T('CameraFit', L.Language), Mode=OneWay}">
@@ -441,9 +449,18 @@
         </Border>
 
         <!-- ═══════════════ Парящая панель «Секущий бокс» (Section Box) ═══════════════ -->
+        <!-- ═══════════════ Панель режима «Конструкции (КЖ / КМ)» (содержимое строится в MainWindow.Wave2.cs) ═══════════════ -->
+        <Border x:Name="StructuralPanel" Style="{StaticResource IslandStyle}" Width="300" Margin="0,62,328,16" Padding="12,10,8,10"
+                HorizontalAlignment="Right" VerticalAlignment="Stretch" UseLayoutRounding="True"
+                Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsStructuralMode), Mode=OneWay}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
+                <StackPanel x:Name="StructuralPanelContent" Spacing="8" />
+            </ScrollViewer>
+        </Border>
+
         <Border Style="{StaticResource IslandStyle}" Width="268" Margin="0,62,328,0" Padding="12,8,8,10"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
-                Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsSectionBoxEnabled), Mode=OneWay}">
+                Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsSectionPanelVisible), Mode=OneWay}">
             <StackPanel Spacing="2">
                 <Grid>
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -947,6 +964,9 @@
                                            Text="{x:Bind ViewModel.UserParametersBatchText, Mode=OneWay}" />
                             </StackPanel>
 
+                            <!-- Паспорт свойств Renga: идентификация, расчётные величины и инженерные характеристики (строится в MainWindow.Wave2.cs) -->
+                            <StackPanel x:Name="RengaPropertiesHost" Spacing="4" Margin="0,4,0,0" />
+
                             <!-- Усилия КЭ-расчёта: N, M, Q, прогиб, продавливание, K_исп (модуль «КЭ-анализ и карта напряжений») -->
                             <Border Style="{StaticResource WalletCardStyle}" Padding="10,8" Margin="0,4,0,0"
                                     Visibility="{x:Bind local:XamlHelpers.VisAll(ViewModel.HasForces, ViewModel.IsAnalysisModule), Mode=OneWay}">
@@ -987,6 +1007,10 @@
                                                    Foreground="{x:Bind local:XamlHelpers.ColorBrush(ViewModel.ForcePunchColor), Mode=OneWay}" Text="{x:Bind ViewModel.ForcePunchText, Mode=OneWay}" />
                                     </Grid>
                                     <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.ForceGoverningText, Mode=OneWay}" />
+                                    <!-- Напряжения σ_max / τ, МПа, против расчётного сопротивления сечения (логический аудит КЭ-расчёта) -->
+                                    <TextBlock FontSize="11" TextWrapping="Wrap" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource TextPrimaryBrush}"
+                                               Visibility="{x:Bind local:XamlHelpers.VisText(ViewModel.ForceStressText), Mode=OneWay}"
+                                               Text="{x:Bind ViewModel.ForceStressText, Mode=OneWay}" />
                                     <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" MaxLines="4"
                                                Visibility="{x:Bind local:XamlHelpers.VisText(ViewModel.ForceNotesText), Mode=OneWay}"
                                                Text="{x:Bind ViewModel.ForceNotesText, Mode=OneWay}" />
@@ -1181,6 +1205,7 @@
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0" Spacing="4" Margin="4,2,4,0">
                         <TextBlock Style="{StaticResource SectionHeaderStyle}" Margin="0" Text="{x:Bind L.T('AxesBuilding', L.Language), Mode=OneWay}" />
@@ -1252,6 +1277,15 @@
                                 ToolTipService.ToolTip="{x:Bind L.T('AxesResetFull', L.Language), Mode=OneWay}"
                                 Content="{x:Bind L.T('AxesReset', L.Language), Mode=OneWay}" />
                     </Grid>
+                    <Button Grid.Row="5" HorizontalAlignment="Stretch" Height="30" CornerRadius="8" FontSize="12"
+                            Background="{StaticResource AccentSoftBrush}" BorderThickness="0"
+                            Command="{x:Bind ViewModel.OpenBuildingDimensionsCommand}"
+                            ToolTipService.ToolTip="{x:Bind L.T('W2DimsTip', L.Language), Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE740;" FontSize="12" Foreground="{StaticResource AccentBrush}" />
+                            <TextBlock FontSize="12" Foreground="{StaticResource AccentBrush}" Text="{x:Bind L.T('W2Dims', L.Language), Mode=OneWay}" />
+                        </StackPanel>
+                    </Button>
                 </Grid>
 
                 <!-- ───────── Анализ: нагрузки площадки, результаты КЭ-расчёта, Clash Detection ───────── -->
@@ -1286,6 +1320,17 @@
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <FontIcon Glyph="&#xE8A5;" FontSize="12" Foreground="{StaticResource AccentBrush}" />
                                 <TextBlock FontSize="12" Foreground="{StaticResource AccentBrush}" Text="{x:Bind ViewModel.PassportButtonText, Mode=OneWay}" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Логический аудит расчётной схемы: баланс сил, 5 критериев, напряжения σ / τ -->
+                        <Button HorizontalAlignment="Stretch" Height="30" CornerRadius="8" Padding="10,0"
+                                Background="{StaticResource HoverBrush}" BorderThickness="0"
+                                Command="{x:Bind ViewModel.RunSchemeAuditCommand}"
+                                ToolTipService.ToolTip="{x:Bind L.T('W2AuditTip', L.Language), Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE9F5;" FontSize="12" Foreground="{StaticResource AccentBrush}" />
+                                <TextBlock FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind L.T('W2Audit', L.Language), Mode=OneWay}" />
                             </StackPanel>
                         </Button>
 

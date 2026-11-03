@@ -263,11 +263,14 @@ public static class CalculationJustificationService
             VerticalLoads(n);
 
             double i = Math.Sqrt(sec.IWeak / Math.Max(1e-9, sec.A));
-            double l0 = (Concrete ? 0.7 : 1.0) * height;
+            double l0 = StructuralAnalysisService.EffectiveLength(m, height);
             double lambda = l0 / Math.Max(1e-4, i);
             Steps.Add(new CalculationStep("Геометрические характеристики сечения", Concrete ? $"{Sp63}, п. 8.1.15" : $"{Sp16}, п. 7.1.3",
                 "A, I_min, i = √(I_min / A)", $"A = {Cm2(sec.A)} см², I_y = {Cm4(sec.IStrong)} см⁴, I_z = {Cm4(sec.IWeak)} см⁴, i = {Mm(i)} мм", i * 1000, "мм"));
-            Steps.Add(new CalculationStep("Гибкость", Concrete ? $"{Sp63}, п. 8.1.17 (l0 = 0,7·H — защемление в перекрытиях)" : $"{Sp16}, п. 10.3.1 (l0 = H)",
+            string scheme = m.LengthFactor > 0
+                ? $"l0 = {F(m.LengthFactor)}·H — закрепление концов задано в режиме «Конструкции»"
+                : Concrete ? "l0 = 0,7·H — защемление в перекрытиях" : "l0 = H";
+            Steps.Add(new CalculationStep("Гибкость", Concrete ? $"{Sp63}, п. 8.1.17 ({scheme})" : $"{Sp16}, п. 10.3.1 ({scheme})",
                 "λ = l0 / i", $"λ = {F(l0)} м / {Mm(i)} мм = {F(lambda)}", lambda, string.Empty, SolverValue: r.Slenderness, Verified: Same(lambda, r.Slenderness)));
             double ecc = Math.Max(Math.Max(height / 600, sec.HWeak / 30), 0.01);
             double latM = r.Moment - n * ecc;
@@ -599,8 +602,11 @@ public static class CalculationJustificationService
             var nodes = result.PunchingNodes.Where(n => n.ColumnId == m.Source.Id || n.SlabId == m.Source.Id).ToList();
             if (nodes.Count == 0) return;
             var worst = nodes.MaxBy(n => n.Ratio)!;
-            string formula = "F_b,ult = Rbt·u·h0, K = F / F_b,ult";
-            string subst = $"узел «{worst.ColumnId}»: F = {F(worst.Force)} кН, u = {F(worst.Perimeter)} м, h0 = {Mm(worst.H0)} мм, F_b,ult = {F(worst.Capacity)} кН (узлов {nodes.Count})";
+            bool steel = worst.SteelCapacity > 0;
+            string formula = steel ? "F_ult = F_b,ult + F_sw,ult, F_sw,ult = 0,8·q_sw·u ≤ F_b,ult, K = F / F_ult" : "F_b,ult = Rbt·u·h0, K = F / F_b,ult";
+            string subst = $"узел «{worst.ColumnId}»: F = {F(worst.Force)} кН, u = {F(worst.Perimeter)} м, h0 = {Mm(worst.H0)} мм, " +
+                           (steel ? $"F_b,ult = {F(worst.Capacity - worst.SteelCapacity)} кН, F_sw,ult = {F(worst.SteelCapacity)} кН (каркасы Кр, п. 8.1.48)" : $"F_b,ult = {F(worst.Capacity)} кН") +
+                           $" (узлов {nodes.Count})";
             // У поэтажно повторяемого элемента узлы всех этажей несут один Id — K узлов не пересчитывается по одному этажу.
             if (m.Source.RepeatLevels > 1)
             {

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using AIArchitectStudio.Models;
 using AIArchitectStudio.Rendering;
 using AIArchitectStudio.Services;
@@ -375,6 +375,7 @@ public sealed partial class MainViewModel
     {
         if (value) ResetSectionBox();
         SectionBoxChanged?.Invoke(this, EventArgs.Empty);
+        OnPropertyChanged(nameof(IsSectionPanelVisible));
     }
 
     partial void OnSectionMinXChanged(double value) => SectionMoved(SectionFace.MinX);

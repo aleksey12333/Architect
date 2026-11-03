@@ -224,8 +224,11 @@ public sealed class PunchingNode
     /// <summary>Продавливающая сила F, кН.</summary>
     public double Force { get; set; }
 
-    /// <summary>F_b,ult = Rbt·u·h0, кН.</summary>
+    /// <summary>F_b,ult = Rbt·u·h0 (+ F_sw,ult поперечной арматуры, если задана), кН.</summary>
     public double Capacity { get; set; }
+
+    /// <summary>F_sw,ult поперечной арматуры продавливания (СП 63, п. 8.1.48), кН; 0 — без армирования.</summary>
+    public double SteelCapacity { get; set; }
 
     /// <summary>Периметр расчётного контура u, м (с учётом края плиты и отверстий).</summary>
     public double Perimeter { get; set; }
@@ -331,6 +334,10 @@ public sealed class StructuralAnalysisResult
 
     /// <summary>Сдвигающая сила в основании по постройкам, кН: ветер и сейсмика.</summary>
     public Dictionary<string, (double Wind, double Seismic)> BaseShear { get; } = [];
+
+    /// <summary>Книга вертикальных нагрузок (баланс сил, путь передачи) — для логического аудита расчётной схемы.</summary>
+    [JsonIgnore]
+    public Analytical.LoadLedger? Ledger { get; set; }
 
     public double MaxUtilization => Elements.Count == 0 ? 0 : Elements.Values.Max(r => r.Utilization);
     public double MaxDeflectionMm => Elements.Count == 0 ? 0 : Elements.Values.Max(r => r.DeflectionMm);

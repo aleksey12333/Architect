@@ -194,6 +194,24 @@ public sealed class StructuralAnalysisService
     // ═════════════════════════════ Формулы норм (общие с паспортом расчёта) ═════════════════════════════
 
     /// <summary>φ для ж/б и кладки по l0/h (СП 63, табл. 8.1, при длительной нагрузке; за пределами — линейная экстраполяция).</summary>
+    /// <summary>
+    /// Расчётная длина стойки l0 = μ·H: μ закрепления концов из режима «Конструкции» (<see cref="StructuralDesign"/>), иначе ж/б —
+    /// 0,7 (защемление в перекрытиях, СП 63 п. 8.1.17), сталь и дерево — 1,0 (те же значения, что и раньше, до бита).
+    /// </summary>
+    public static double EffectiveLength(AnalyticalElement m, double height) =>
+        (m.LengthFactor > 0 ? m.LengthFactor : m.Material.Kind == AnalyticalMaterialKind.Concrete ? 0.7 : 1.0) * height;
+
+    /// <summary>
+    /// Несущая способность поперечной арматуры продавливания (СП 63, п. 8.1.48): F_sw,ult = 0,8·q_sw·u, не более F_b,ult;
+    /// учитывается при F_sw,ult ≥ 0,25·F_b,ult. Без армирования (q_sw = 0) — 0.
+    /// </summary>
+    public static double PunchingSteelCapacity(AnalyticalElement slab, double u, double concreteCapacity)
+    {
+        if (slab.PunchingQsw <= 0) return 0;
+        double steel = Math.Min(0.8 * slab.PunchingQsw * u, concreteCapacity);
+        return steel >= 0.25 * concreteCapacity ? steel : 0;
+    }
+
     public static double PhiConcrete(double lambdaH)
     {
         (double L, double P)[] table = [(0, 0.92), (6, 0.92), (10, 0.90), (15, 0.83), (20, 0.70), (25, 0.58), (30, 0.48), (40, 0.32), (60, 0.15)];
@@ -260,6 +278,7 @@ public sealed class StructuralAnalysisService
         private readonly List<PunchingNode> _nodes = [];
         private readonly Dictionary<string, (double Wind, double Seismic)> _baseShear = [];
         private readonly Dictionary<string, double> _phase = new(model.Profile.Phases);
+        private readonly LoadLedger _ledger = new(model.Elements);
 
         private static State[] CreateStates(int count)
         {
@@ -307,6 +326,33 @@ public sealed class StructuralAnalysisService
             }
             result.PunchingNodes.AddRange(_nodes.OrderByDescending(n => n.Ratio));
             foreach (var (k, v) in _baseShear) result.BaseShear[k] = v;
+            result.Ledger = _ledger;
+        }
+
+        /// <summary>Книга нагрузок: всё, что пришло к элементу сверху к моменту его обработки (обход сверху вниз).</summary>
+        private void RecordIn(AnalyticalElement m)
+        {
+            var st = S(m);
+            double sum = st.ReceivedD;
+            foreach (var p in st.Points) sum += p.D;
+            foreach (var p in st.Distributed) sum += p.D;
+            _ledger.In[m.Index] = sum;
+        }
+
+        /// <summary>Книга нагрузок: передача d от элемента получателю (null — грунт при низе на уровне земли, иначе — без опоры).</summary>
+        private void RecordOut(AnalyticalElement m, AnalyticalElement? receiver, double d)
+        {
+            if (receiver is not null)
+            {
+                _ledger.Out[m.Index] += d;
+                _ledger.Edges.Add((m.Index, receiver.Index));
+            }
+            else if (m.Base <= GroundLevel)
+            {
+                _ledger.Ground[m.Index] += d;
+                _ledger.Edges.Add((m.Index, LoadLedger.GroundIndex));
+            }
+            else _ledger.Lost[m.Index] += d;
         }
 
         /// <summary>Проверки прочности, устойчивости, среза, продавливания и основания — с γn; прогиб (II группа) — без.</summary>
@@ -442,6 +488,7 @@ public sealed class StructuralAnalysisService
             foreach (var m in order)
             {
                 sw.Restart();
+                RecordIn(m);
                 switch (m.Role)
                 {
                     case AnalyticalRole.LoadOnly: ProcessLoadOnly(m); break;
@@ -472,6 +519,9 @@ public sealed class StructuralAnalysisService
             st.R.DesignLoad = qd;
             var clock = Stopwatch.StartNew();
             var supports = plan.Supports;
+            double applied = 0;
+            foreach (var p in plan.Samples) applied += qd * p.A;
+            _ledger.Self[m.Index] = applied;
 
             if (supports.Count == 0)
             {
@@ -516,9 +566,17 @@ public sealed class StructuralAnalysisService
                     target.ReceivedD += d;
                     target.ReceivedN += n;
                     if (sp.IsColumnLike && Math.Abs(sp.Top - m.Base) <= Tol) st.ColumnReactions.Add((sp, d));
+                    RecordOut(m, sp, d);
                 }
+                else if (!lineLoads.ContainsKey(sp)) _ledger.Lost[m.Index] += d;
             }
-            foreach (var (line, loads) in lineLoads) S(line).Distributed.AddRange(loads);
+            foreach (var (line, loads) in lineLoads)
+            {
+                S(line).Distributed.AddRange(loads);
+                double sum = 0;
+                foreach (var l in loads) sum += l.D;
+                RecordOut(m, line, sum);
+            }
 
             if (!m.Checked) return;
             bool mono = m.Material.Kind == AnalyticalMaterialKind.Concrete && reactions.Keys.All(sp => sp.Material.Kind == AnalyticalMaterialKind.Concrete);
@@ -673,14 +731,18 @@ public sealed class StructuralAnalysisService
             double inside = Geometry2D.Area(PunchContour(column, offsetForLoad));
             double f = Math.Max(0, force - pressure * inside);
             double capacity = (slab.Material.Kind == AnalyticalMaterialKind.Concrete ? slab.Material.Rbt : _concrete.Rbt * 1000) * u * h0;
+            double steel = PunchingSteelCapacity(slab, u, capacity);
+            capacity += steel;
             double ratio = capacity > 0 ? f / capacity : 0;
-            var status = ratio <= 1 ? PunchingStatus.Ok : ratio <= 2 ? PunchingStatus.NeedsReinforcement : PunchingStatus.Critical;
+            // С поперечной арматурой превышение — уже критическое (резерв каркасов Кр исчерпан).
+            var status = ratio <= 1 ? PunchingStatus.Ok : ratio <= 2 && steel == 0 ? PunchingStatus.NeedsReinforcement : PunchingStatus.Critical;
             var node = new PunchingNode
             {
                 ColumnId = column.Source.Id,
                 SlabId = slab.Source.Id,
                 Force = f,
                 Capacity = capacity,
+                SteelCapacity = steel,
                 Perimeter = u,
                 H0 = h0,
                 Status = status,
@@ -762,6 +824,9 @@ public sealed class StructuralAnalysisService
             var axisPos = m.Stations;
 
             var uniform = axisPos.Select(p => (S: p.S, D: m.SelfD * p.Length / length, N: m.SelfN * p.Length / length)).ToList();
+            double selfSum = 0;
+            foreach (var p in uniform) selfSum += p.D;
+            _ledger.Self[m.Index] = selfSum;
             uniform.AddRange(st.Distributed.Select(p => (m.ArcPosition(p.X, p.Z), p.D, p.N)));
             var concentrated = st.Points.Select(p => (S: m.ArcPosition(p.X, p.Z), p.D, p.N)).ToList();
             double totalD = uniform.Sum(p => p.D) + concentrated.Sum(p => p.D);
@@ -859,8 +924,12 @@ public sealed class StructuralAnalysisService
                 Add(reactions, support, loadD, loadN);
             }
 
+            double reactionSum = 0;
+            foreach (var (_, (d, _)) in reactions) reactionSum += d;
+            _ledger.Beams[m.Index] = (totalD, reactionSum);
             foreach (var (sp, (d, n)) in reactions)
             {
+                RecordOut(m, sp, d);
                 if (sp.Role == AnalyticalRole.Vertical)
                 {
                     var target = S(sp);
@@ -943,6 +1012,7 @@ public sealed class StructuralAnalysisService
             var r = st.R;
             st.HasResult = true;
             double nd = m.SelfD + st.ReceivedD, nn = m.SelfN + st.ReceivedN;
+            _ledger.Self[m.Index] = m.SelfD;
             r.AxialForce = nd;
             r.Shear = st.LatV;
             double height = m.Height;
@@ -975,7 +1045,7 @@ public sealed class StructuralAnalysisService
             var r = st.R;
             var sec = m.Section;
             double i = Math.Sqrt(sec.IWeak / Math.Max(1e-9, sec.A));
-            double l0 = (m.Material.Kind == AnalyticalMaterialKind.Concrete ? 0.7 : 1.0) * height;
+            double l0 = EffectiveLength(m, height);
             double lambda = l0 / Math.Max(1e-4, i);
             r.Slenderness = lambda;
             double eccentricity = Math.Max(Math.Max(height / 600, sec.HWeak / 30), 0.01);
@@ -1136,6 +1206,9 @@ public sealed class StructuralAnalysisService
             double loadD = st.Points.Sum(p => p.D), loadN = st.Points.Sum(p => p.N);
             double pD = loadD / area + selfD, pN = loadN / area + selfN;
             double net = Math.Max(0, pD - selfD);
+            _ledger.Self[m.Index] = selfD * area;
+            _ledger.Ground[m.Index] = loadD + selfD * area;
+            _ledger.Edges.Add((m.Index, LoadLedger.GroundIndex));
             r.DesignLoad = pD;
             r.AxialForce = loadD;
             r.KSoil = pN / Math.Max(1, s.SoilBearingKPa);
@@ -1184,6 +1257,9 @@ public sealed class StructuralAnalysisService
             var weights = m.TransferPoints!;
             double sum = Math.Max(1e-9, weights.Sum(p => p.W));
             var pts = weights.Select(p => (p.X, p.Z, m.SelfD * p.W / sum, m.SelfN * p.W / sum)).ToList();
+            double self = 0;
+            foreach (var p in pts) self += p.Item3;
+            _ledger.Self[m.Index] = self;
             pts.AddRange(S(m).Points.Select(p => (p.X, p.Z, p.D, p.N)));
             TransferDown(m, pts, punchSource: false, m.Receivers);
         }
@@ -1195,6 +1271,7 @@ public sealed class StructuralAnalysisService
             double planArea = Math.PI * m.Width * m.Depth / 4;
             double total = m.SelfD + 0.6 * s.SnowKPa * planArea + st.Points.Sum(p => p.D);
             double totalN = m.SelfN + 0.42 * s.SnowKPa * planArea + st.Points.Sum(p => p.N);
+            _ledger.Self[m.Index] = m.SelfD + 0.6 * s.SnowKPa * planArea;
             var ring = m.SupportRing!;
             double perimeter = Geometry2D.Perimeter(ring);
             TransferDown(m, ring.Select(p => (p.X, p.Z, total / ring.Count, totalN / ring.Count)).ToList(), punchSource: false, m.Receivers);
@@ -1228,6 +1305,7 @@ public sealed class StructuralAnalysisService
             {
                 var (x, z, d, n) = loads[k];
                 var receiver = receivers is not null && k < receivers.Length ? receivers[k] : model.SupportBelow(m, x, z);
+                RecordOut(m, receiver, d);
                 if (receiver is null)
                 {
                     if (m.Base > GroundLevel) missing = true;

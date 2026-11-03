@@ -99,6 +99,8 @@ public sealed class AnalyticalModelBuilder
             {
                 var m = Create(e, inst, floor, wallOpenings.GetValueOrDefault(e.Id));
                 if (m is null) continue;
+                // Закрепление концов и армирование продавливания (режим «Конструкции») — только у элементов со свойствами пользователя.
+                if (e.UserParameters is not null) StructuralDesign.ApplyTo(m, e);
                 if (m.Role is AnalyticalRole.Slab or AnalyticalRole.Foundation && e.CanHostSlabOpenings)
                     foreach (var hole in openings)
                     {

@@ -99,13 +99,15 @@ public sealed class CadExportService
     /// <summary>Экспорт снимка сцены в фоне. Передавайте клоны элементов: UI может менять сцену во время записи.</summary>
     public Task<CadExportResult> ExportAsync(CadExportFormat format, string path,
         IReadOnlyList<ArchitecturalElement> elements, IReadOnlyList<BuildingGroup> groups, string projectName,
-        IReadOnlyList<StructuralGridAxis>? axes = null, IReadOnlyList<PinnedDimension>? dimensions = null, CancellationToken cancellationToken = default) =>
+        IReadOnlyList<StructuralGridAxis>? axes = null, IReadOnlyList<PinnedDimension>? dimensions = null, CancellationToken cancellationToken = default,
+        bool baseQuantities = false) =>
         Task.Run(() =>
         {
             var sw = Stopwatch.StartNew();
             var scene = new ExportScene(elements, groups, string.IsNullOrWhiteSpace(projectName) ? "Architect Studio Pro" : projectName, axes ?? [])
             {
-                Dimensions = dimensions ?? []
+                Dimensions = dimensions ?? [],
+                BaseQuantities = baseQuantities
             };
             var (files, entities, details) = format switch
             {
@@ -132,6 +134,9 @@ public sealed class CadExportService
 
         /// <summary>Пользовательские размеры рулетки (DXF — слой DIMENSIONS).</summary>
         public IReadOnlyList<PinnedDimension> Dimensions { get; init; } = [];
+
+        /// <summary>IFC: базовые количества Qto_* (объёмы нетто/брутто, опалубка, проёмы, подошва, периметр) — свойства Renga.</summary>
+        public bool BaseQuantities { get; init; }
         private readonly Dictionary<string, BuildingGroup> _groups;
         private readonly Dictionary<string, List<ArchitecturalElement>> _openings = [];
 
@@ -1085,6 +1090,7 @@ public sealed class CadExportService
             if (layered && !standardWall) AssociateLayerSet(product, e);
             TrackMaterial(e.Material, product, standardWall || layered);
             WriteProperties(product, source, e, floor);
+            if (scene.BaseQuantities) WriteBaseQuantities(product, source, key);
 
             // Хост-экструзия (не параметрическая и без наклона): вырезы и заполнения её окон и дверей, сквозные проёмы.
             if (ElementTypes.IsHostType(e.Type) && !brep && Math.Max(1, source.RepeatLevels) == 1)
@@ -1237,6 +1243,10 @@ public sealed class CadExportService
             double w = Math.Max(0.01, e.Width), h = Math.Max(0.01, e.Height), d = Math.Max(0.01, e.Depth);
             int profile;
             bool polygon = e.Polygon2D.Count >= 3;
+            // Плоская кровля с парапетом: плита (с явным свесом — по смещённому контуру) + кольцо парапета вторым телом.
+            bool parapet = e.Type == ElementTypes.Roof && RoofShapes.Normalize(e.RoofShape) == RoofShapes.FlatParapet;
+            var parapetOutlines = parapet ? ElementGeometryBuilder.ParapetRoofOutlines(e) : default;
+            static List<(double X, double Y)> Cad(List<System.Numerics.Vector2> loop) => loop.Select(p => ((double)p.X, -(double)p.Y)).ToList();
 
             if (e.Type == ElementTypes.Core && !polygon)
             {
@@ -1268,7 +1278,16 @@ public sealed class CadExportService
             int position = Add($"IFCAXIS2PLACEMENT3D(#{_origin},$,$)");
             int solid = Add($"IFCEXTRUDEDAREASOLID(#{profile},#{position},#{_dirZ},{R(h)})");
             Style(solid, kind);
-            int body = Add($"IFCSHAPEREPRESENTATION(#{_bodyContext},'Body','SweptSolid',(#{solid}))");
+            string items = $"#{solid}";
+            if (parapet)
+            {
+                int ring = Add($"IFCARBITRARYPROFILEDEFWITHVOIDS(.AREA.,{S("Парапет")},#{Polyline(Cad(parapetOutlines.Slab))},(#{Polyline(Cad(parapetOutlines.ParapetInner))}))");
+                int top = Add($"IFCAXIS2PLACEMENT3D(#{Point3(0, 0, h)},$,$)");
+                int wall = Add($"IFCEXTRUDEDAREASOLID(#{ring},#{top},#{_dirZ},{R(RoofDesign.ParapetHeight(e))})");
+                Style(wall, MaterialKind.Concrete);
+                items += $",#{wall}";
+            }
+            int body = Add($"IFCSHAPEREPRESENTATION(#{_bodyContext},'Body','SweptSolid',({items}))");
 
             if (e.Type == ElementTypes.Wall && !polygon)
             {
@@ -1473,6 +1492,38 @@ public sealed class CadExportService
             Rel("IFCRELASSOCIATESMATERIAL", "ls:" + e.Id, $"(#{product}),#{usage}");
         }
 
+        /// <summary>
+        /// Базовые количества (IfcElementQuantity «Qto_&lt;Класс&gt;BaseQuantities»): NetVolume и GrossVolume (м³, за вычетом проёмов и
+        /// отверстий), FormworkArea (опалубка), OpeningArea, GrossFootprintArea (подошва, м²), Perimeter (м) — по паспорту свойств Renga.
+        /// </summary>
+        private void WriteBaseQuantities(int product, ArchitecturalElement source, string key)
+        {
+            if (ElementTypes.IsVoidType(source.Category)) return;
+            var p = RengaPropertyService.Compute(source, scene.Elements);
+            string cls = source.Category switch
+            {
+                BimCategory.Wall or BimCategory.Core => "Wall",
+                BimCategory.Column => "Column",
+                BimCategory.Beam => "Beam",
+                BimCategory.Window => "Window",
+                BimCategory.Door => "Door",
+                BimCategory.Foundation => "Footing",
+                BimCategory.Roof => "Roof",
+                _ => "Slab"
+            };
+            var q = new List<int>
+            {
+                Add($"IFCQUANTITYVOLUME('NetVolume',$,$,{R(p.NetVolume)})"),
+                Add($"IFCQUANTITYVOLUME('GrossVolume',$,$,{R(p.GrossVolume)})"),
+                Add($"IFCQUANTITYAREA('FormworkArea',$,$,{R(p.FormworkArea)})"),
+                Add($"IFCQUANTITYAREA('OpeningArea',$,$,{R(p.OpeningArea)})"),
+                Add($"IFCQUANTITYAREA('GrossFootprintArea',$,$,{R(p.BaseArea)})"),
+                Add($"IFCQUANTITYLENGTH('Perimeter',$,$,{R(p.Perimeter)})")
+            };
+            int qto = Add($"IFCELEMENTQUANTITY('{Guid("qto:" + key)}',#{_ownerHistory},'Qto_{cls}BaseQuantities',$,{S("Architect Studio Pro")},{List(q)})");
+            Rel("IFCRELDEFINESBYPROPERTIES", "qdef:" + key, $"(#{product}),#{qto}");
+        }
+
         private void WriteProperties(int product, ArchitecturalElement source, ArchitecturalElement e, int floor)
         {
             var props = new List<int>
@@ -1489,6 +1540,14 @@ public sealed class CadExportService
             };
             if (e.Type == ElementTypes.Roof)
                 props.Add(Add($"IFCPROPERTYSINGLEVALUE('RoofShape',$,IFCLABEL({S(RoofShapes.Normalize(e.RoofShape))}),$)"));
+            // Полая кровля по контуру пишется поверхностью: контур Polygon2D — для точного Round-Trip формы плана.
+            if (e.Type == ElementTypes.Roof && RoofShapes.IsHollow(RoofShapes.Normalize(e.RoofShape)) && !e.IsFlatRoof)
+            {
+                // Габарит поверхности включает свес и подшивку: точка вставки (центр, отметка) пишется явно.
+                props.Add(Add($"IFCPROPERTYSINGLEVALUE('Origin',$,IFCLABEL({S($"{R(e.X)} {R(e.Y)} {R(e.Z)}")}),$)"));
+                if (e.Polygon2D.Count >= 3)
+                    props.Add(Add($"IFCPROPERTYSINGLEVALUE('Polygon2D',$,IFCLABEL({S(string.Join(";", e.Polygon2D.Select(p => $"{R(p.X)} {R(p.Z)}")))}),$)"));
+            }
             if (ElementTypes.IsProfiledType(e.Type))
                 props.Add(Add($"IFCPROPERTYSINGLEVALUE('ProfileType',$,IFCLABEL({S(e.EffectiveProfile)}),$)"));
             if (source.RepeatLevels > 1)

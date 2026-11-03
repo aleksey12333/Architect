@@ -51,6 +51,12 @@ public sealed record GostDrawingResult(string Path, string SheetTitle, int Scale
 
     /// <summary>Размер файла и шрифта-подмножества.</summary>
     public PdfSaveInfo? Pdf { get; init; }
+
+    /// <summary>Автопроверка размерных цепочек листа (ГОСТ 2.307-2011): замыкание, числа, наложения текста.</summary>
+    public DimensionCheckResult? DimensionCheck { get; init; }
+
+    /// <summary>Размерные цепочки и рамки текстов листа.</summary>
+    public DrawingDimensionLayout? DimensionLayout { get; init; }
 }
 
 /// <summary>Лист альбома: номер, наименование изображения, формат и масштаб (0 — лист таблиц).</summary>
@@ -62,6 +68,12 @@ public sealed record GostAlbumResult(string Path, IReadOnlyList<GostAlbumSheet> 
 {
     /// <summary>Пользовательских размеров рулетки на листах плана и разреза.</summary>
     public int PinnedDimensions { get; init; }
+
+    /// <summary>Автопроверка размерных цепочек плана и разреза (ГОСТ 2.307-2011).</summary>
+    public DimensionCheckResult? DimensionCheck { get; init; }
+
+    /// <summary>Размерные цепочки листов плана и разреза.</summary>
+    public IReadOnlyList<DrawingDimensionLayout> DimensionLayouts { get; init; } = [];
 }
 
 /// <summary>Окклюзия разреза: отрезков заднего плана, сколько из них обрезано сечениями, видимых участков, проверка инварианта.</summary>
@@ -176,12 +188,19 @@ public sealed class GostDrawingPdfExporter
         public List<(double V, string Text)> LevelMarks { get; init; } = [];
         public SectionOcclusion? Occlusion { get; init; }
 
+        /// <summary>Габарит изображённых конструкций (м чертежа) — крайние точки размерных цепочек.</summary>
+        public (double MinU, double MaxU, double MinV, double MaxV) Extents { get; init; }
+
+        /// <summary>Цепочка 1 плана: границы проёмов и простенков наружной стены внизу (U) и слева (V).</summary>
+        public List<double> FacadeU { get; init; } = [];
+        public List<double> FacadeV { get; init; } = [];
+
         /// <summary>Выведено пользовательских размеров рулетки.</summary>
         public int PinnedDimensions { get; init; }
     }
 
     /// <summary>Итог компоновки листа: масштаб, выведено строк спецификации и ведомости стали.</summary>
-    private readonly record struct RenderedSheet(int Scale, int SpecRows, int SteelRows);
+    private readonly record struct RenderedSheet(int Scale, int SpecRows, int SteelRows, DrawingDimensionLayout? Layout = null);
 
     private static TrueTypeFont LoadFont() => TrueTypeFont.LoadSystem("isocpeur.ttf", "ISOCPEUR.TTF", "arial.ttf", "segoeui.ttf", "tahoma.ttf");
 
@@ -199,11 +218,16 @@ public sealed class GostDrawingPdfExporter
         details.Insert(0, $"Лист {FormatTitle(req.Format)} ({sheetW:0}×{sheetH:0} мм), масштаб 1:{sheet.Scale}, {FontLine(info)}");
         details.Add($"Элементов на чертеже: {content.Drawn}; строк спецификации: {sheet.SpecRows}; осей: {content.AxisMarks.Count + content.RowMarks.Count}; отметок уровней: {content.LevelMarks.Count}");
         AddContentDetails(details, content, sheet, ctx);
+        // Автопроверка размеров перед выпуском: замыкание цепочек, числа ≡ геометрии, рамки текстов без наложений.
+        var check = DrawingDimensionVerifier.Verify(sheet.Layout is { } layout ? [layout] : []);
+        details.Add("Размеры по ГОСТ 2.307-2011: " + check.Summary(Ru));
         return new GostDrawingResult(path, content.Title, sheet.Scale, sheet.SpecRows, content.Drawn, details)
         {
             Occlusion = content.Occlusion,
             Pdf = info,
-            PinnedDimensions = content.PinnedDimensions
+            PinnedDimensions = content.PinnedDimensions,
+            DimensionCheck = check,
+            DimensionLayout = sheet.Layout
         };
     }
 
@@ -258,9 +282,14 @@ public sealed class GostDrawingPdfExporter
                         (o.Verified ? " — ни один видимый участок не проходит по заливке сечений" : " — ОШИБКА: линия поверх сечения"));
         if (plan.PinnedDimensions + section.PinnedDimensions > 0)
             details.Add($"Пользовательские размеры рулетки: на плане {plan.PinnedDimensions}, на разрезе {section.PinnedDimensions}");
+        var layouts = new[] { s1.Layout, s2.Layout }.OfType<DrawingDimensionLayout>().ToList();
+        var check = DrawingDimensionVerifier.Verify(layouts);
+        details.Add("Размеры по ГОСТ 2.307-2011: " + check.Summary(Ru));
         return new GostAlbumResult(path, sheets, details, info, section.Occlusion, s3.SpecRows, s3.SteelRows)
         {
-            PinnedDimensions = plan.PinnedDimensions + section.PinnedDimensions
+            PinnedDimensions = plan.PinnedDimensions + section.PinnedDimensions,
+            DimensionCheck = check,
+            DimensionLayouts = layouts
         };
     }
 
@@ -324,6 +353,9 @@ public sealed class GostDrawingPdfExporter
         SectionOcclusion? occlusion = null;
         bool section = view == GostDrawingView.Section;
         int pinned = 0;
+        (double MinU, double MaxU, double MinV, double MaxV) extents = default;
+        List<double> facadeU = [], facadeV = [];
+        void Capture() => extents = drawing.IsEmpty ? (0, 6, 0, 6) : (drawing.MinU, drawing.MaxU, drawing.MinV, drawing.MaxV);
 
         switch (view)
         {
@@ -334,6 +366,7 @@ public sealed class GostDrawingPdfExporter
                 title = $"Схема расположения элементов каркаса. План на отм. {Elevation(elev)}";
                 mark = "КЖ";
                 drawn = DrawFrameScheme(drawing, ctx.Instances, req.Elements, ctx.Level, specRows, registry);
+                Capture();
                 pinned = DrawPinnedDimensions(drawing, PlanDimensions(ctx), p => Plan(p.X, p.Z));
                 break;
             }
@@ -341,6 +374,7 @@ public sealed class GostDrawingPdfExporter
             {
                 var (sectionTitle, n, _, u, count, sectionLevels) = DrawSection(drawing, ctx.Instances, ctx.GroupItems, req, specRows, ctx.Levels, out var occ, registry);
                 occlusion = occ;
+                Capture();
                 title = sectionTitle;
                 mark = "КЖ";
                 drawn = count;
@@ -364,6 +398,8 @@ public sealed class GostDrawingPdfExporter
                 title = $"План этажа на отм. {Elevation(ctx.LevelElevation)}";
                 mark = "АР";
                 drawn = DrawFloorPlan(drawing, ctx.Instances, req.Elements, ctx.Level, specRows, registry);
+                Capture();
+                (facadeU, facadeV) = FacadeChains(ctx.Instances, req.Elements, ctx.Level, extents);
                 pinned = DrawPinnedDimensions(drawing, PlanDimensions(ctx), p => Plan(p.X, p.Z));
                 break;
             }
@@ -392,8 +428,51 @@ public sealed class GostDrawingPdfExporter
             RowMarks = rowMarks,
             LevelMarks = levelMarks,
             Occlusion = occlusion,
-            PinnedDimensions = pinned
+            PinnedDimensions = pinned,
+            Extents = extents,
+            FacadeU = facadeU,
+            FacadeV = facadeV
         };
+    }
+
+    /// <summary>
+    /// Цепочка 1 (ближняя) плана по ГОСТ 21.501: границы проёмов и простенков наружной стены нижнего фасада (U) и левого (V) —
+    /// стены вдоль стороны, наружная грань которых в 0,6 м от габарита; без проёмов на стороне — пустой список.
+    /// </summary>
+    private static (List<double> U, List<double> V) FacadeChains(List<ArchitecturalElement> items, IReadOnlyList<ArchitecturalElement> scene, int level,
+        (double MinU, double MaxU, double MinV, double MaxV) e)
+    {
+        var (walls, _, hosted, _, _) = PlanSets(items, scene, level);
+        var bottom = new List<double>();
+        var left = new List<double>();
+        foreach (var w in walls.Where(w => w.Polygon2D.Count < 3 && w.Type == ElementTypes.Wall))
+        {
+            double r = ((ArchitecturalElement.NormalizeAngle(w.RotationY) % 180) + 180) % 180;
+            bool alongU = r < 1 || r > 179, alongV = Math.Abs(r - 90) < 1;
+            if (!alongU && !alongV) continue;
+            var outline = PlanOutline(w);
+            bool atBottom = alongU && outline.Min(p => p.V) - e.MinV < 0.6;
+            bool atLeft = alongV && outline.Min(p => p.U) - e.MinU < 0.6;
+            if (!atBottom && !atLeft) continue;
+            foreach (var o in hosted.Where(h => h.HostElementId == w.Id))
+            {
+                var (lx, _) = ArchitecturalElement.RotateY(o.X - w.X, o.Z - w.Z, -w.RotationY);
+                var a = Local(w, lx - o.Width / 2, 0);
+                var b = Local(w, lx + o.Width / 2, 0);
+                if (atBottom) bottom.AddRange([a.U, b.U]);
+                else left.AddRange([a.V, b.V]);
+            }
+        }
+        static List<double> Chain(List<double> edges, double lo, double hi)
+        {
+            if (edges.Count == 0) return [];
+            var pts = edges.Where(x => x > lo + 1e-3 && x < hi - 1e-3).Append(lo).Append(hi).OrderBy(x => x).ToList();
+            var result = new List<double>();
+            foreach (double x in pts)
+                if (result.Count == 0 || x - result[^1] > 0.0015) result.Add(x);
+            return result;
+        }
+        return (Chain(bottom, e.MinU, e.MaxU), Chain(left, e.MinV, e.MaxV));
     }
 
     /// <summary>Размеры рулетки этажа плана: отрезок по высоте пересекает интервал от отметки этажа до отметки следующего.</summary>
@@ -496,7 +575,7 @@ public sealed class GostDrawingPdfExporter
     }
 
     /// <summary>Отступы поля чертежа от области листа (мм): слева — под марки буквенных осей, снизу — под размерные цепочки.</summary>
-    private static (double L, double R, double B, double T) Pads(bool section) => section ? (10, 40, 34, 24) : (34, 16, 34, 30);
+    private static (double L, double R, double B, double T) Pads(bool section) => section ? (28, 40, 34, 24) : (42, 16, 42, 30);
 
     /// <summary>Области поля чертежа: левее основной надписи на всю высоту и во всю ширину над таблицами (штампом).</summary>
     private static (double X0, double X1, double Y0, double Y1)[] Areas(double sheetW, double sheetH, double tablesTop)
@@ -613,9 +692,14 @@ public sealed class GostDrawingPdfExporter
 
         var (bx0, by0) = map.P(drawing.MinU, drawing.MinV);
         var (bx1, by1) = map.P(drawing.MaxU, drawing.MaxV);
-        if (c.IsSection) DrawSectionAxes(page, map, c.AxisMarks, by0, by1);
-        else DrawPlanAxes(page, map, c.AxisMarks, c.RowMarks, bx0, by0, bx1, by1);
-        DrawLevelMarks(page, map, c.LevelMarks, bx1);
+        var dims = new DrawingDimensionLayout { Sheet = c.Title };
+        if (c.IsSection)
+        {
+            DrawSectionAxes(page, map, c.AxisMarks, by0, by1, c.Extents, dims);
+            DrawStoreyChain(page, map, c.LevelMarks, bx0, dims);
+        }
+        else DrawPlanAxes(page, map, c, bx0, by0, bx1, by1, dims);
+        DrawLevelMarks(page, map, c.LevelMarks, bx1, dims);
 
         // Название изображения над полем чертежа.
         string head = $"{c.Title}   М 1:{scale}";
@@ -633,7 +717,7 @@ public sealed class GostDrawingPdfExporter
             if (steelRows.Count > 0) DrawSteelStatement(page, stampX, specTableTop + 9, steelRows, ctx.Loads.Rebar);
         }
         Stamp($"{c.Title}. М 1:{scale}");
-        return new RenderedSheet(scale, rows.Count, steelRows.Count);
+        return new RenderedSheet(scale, rows.Count, steelRows.Count, dims);
     }
 
     /// <summary>
@@ -1471,15 +1555,17 @@ public sealed class GostDrawingPdfExporter
     // ═════════════════════════════ Оси, размеры, отметки ═════════════════════════════
 
     /// <summary>
-    /// Координационные оси плана: штрихпунктир через всё поле, марки в кружках Ø8 мм на обоих концах, снизу и слева —
-    /// размерная цепочка между осями и общий размер (мм).
+    /// Координационные оси плана и трёхрядные замкнутые размерные цепочки по ГОСТ 2.307-2011 / ГОСТ 21.501 снизу и слева: ряд 1
+    /// (ближний, 8 мм от контура) — проёмы и простенки наружной стены от грани до грани, ряд 2 — межосевые расстояния, ряд 3 — общий
+    /// размер между крайними осями (Σ ряда 2 ≡ ряду 3). Значения — разности точек, округлённых до целых мм (Σ звеньев ≡ габариту
+    /// цепочки), узкие звенья — вразбежку или на полке без наложения текстов.
     /// </summary>
-    private static void DrawPlanAxes(PdfVectorPage page, Mapper m, List<(string Label, double U)> cols, List<(string Label, double V)> rows,
-        double x0, double y0, double x1, double y1)
+    private static void DrawPlanAxes(PdfVectorPage page, Mapper m, SheetContent c, double x0, double y0, double x1, double y1, DrawingDimensionLayout layout)
     {
-        double dim1Y = y0 - 9, dim2Y = y0 - 17, axisBottom = y0 - 23, axisTop = y1 + 6;
-        double dim1X = x0 - 9, dim2X = x0 - 17, axisLeft = x0 - 23, axisRight = x1 + 6;
-        var xs = cols.Select(c => (c.Label, X: m.P(c.U, 0).X)).OrderBy(c => c.X).ToList();
+        double axisBottom = y0 - 30, axisTop = y1 + 6, axisLeft = x0 - 30, axisRight = x1 + 6;
+        var cols = c.AxisMarks;
+        var rows = c.RowMarks;
+        var xs = cols.Select(a => (a.Label, X: m.P(a.U, 0).X)).OrderBy(a => a.X).ToList();
         var ys = rows.Select(r => (r.Label, Y: m.P(0, r.V).Y)).OrderBy(r => r.Y).ToList();
 
         page.LineWidth(Thin);
@@ -1499,20 +1585,26 @@ public sealed class GostDrawingPdfExporter
             AxisBubble(page, axisRight + Bubble, y, label);
         }
 
-        if (xs.Count >= 2)
+        var e = c.Extents;
+        void Side(string side, bool horizontal, double lo, double hi, List<double> axes, List<double> facade, double edge)
         {
-            DimChain(page, xs.Select(c => c.X).ToList(), dim1Y, horizontal: true, m.K, xs.Zip(xs.Skip(1), (a, b) => (b.X - a.X) / m.K).ToList());
-            DimChain(page, [xs[0].X, xs[^1].X], dim2Y, horizontal: true, m.K, [(xs[^1].X - xs[0].X) / m.K]);
+            if (hi - lo < 0.05) return;
+            if (facade.Count >= 2) Chain(page, m, layout, side, 1, horizontal, facade, edge - 8);
+            var ordered = axes.OrderBy(a => a).ToList();
+            if (ordered.Count >= 2)
+            {
+                Chain(page, m, layout, side, 2, horizontal, ordered, edge - 16);
+                Chain(page, m, layout, side, 3, horizontal, [ordered[0], ordered[^1]], edge - 24);
+            }
+            else Chain(page, m, layout, side, 3, horizontal, [lo, hi], edge - 24);
         }
-        if (ys.Count >= 2)
-        {
-            DimChain(page, ys.Select(r => r.Y).ToList(), dim1X, horizontal: false, m.K, ys.Zip(ys.Skip(1), (a, b) => (b.Y - a.Y) / m.K).ToList());
-            DimChain(page, [ys[0].Y, ys[^1].Y], dim2X, horizontal: false, m.K, [(ys[^1].Y - ys[0].Y) / m.K]);
-        }
+        Side("низ плана", true, e.MinU, e.MaxU, cols.Select(a => a.U).ToList(), c.FacadeU, y0);
+        Side("левая сторона плана", false, e.MinV, e.MaxV, rows.Select(r => r.V).ToList(), c.FacadeV, x0);
     }
 
-    /// <summary>Оси на разрезе: вертикальные штрихпунктирные линии, марки снизу, размерная цепочка под разрезом.</summary>
-    private static void DrawSectionAxes(PdfVectorPage page, Mapper m, List<(string Label, double U)> cols, double y0, double y1)
+    /// <summary>Оси на разрезе: вертикальные штрихпунктирные линии, марки снизу, межосевая цепочка и общий размер под разрезом.</summary>
+    private static void DrawSectionAxes(PdfVectorPage page, Mapper m, List<(string Label, double U)> cols, double y0, double y1,
+        (double MinU, double MaxU, double MinV, double MaxV) extents, DrawingDimensionLayout layout)
     {
         var xs = cols.Select(c => (c.Label, X: m.P(c.U, 0).X)).OrderBy(c => c.X).ToList();
         double axisBottom = y0 - 20, axisTop = y1 + 4;
@@ -1521,11 +1613,23 @@ public sealed class GostDrawingPdfExporter
         foreach (var (_, x) in xs) page.Line(x, axisBottom, x, axisTop);
         page.Dash();
         foreach (var (label, x) in xs) AxisBubble(page, x, axisBottom - Bubble, label);
-        if (xs.Count >= 2)
+        if (cols.Count >= 2)
         {
-            DimChain(page, xs.Select(c => c.X).ToList(), y0 - 7, horizontal: true, m.K, xs.Zip(xs.Skip(1), (a, b) => Math.Abs(b.X - a.X) / m.K).ToList());
-            DimChain(page, [xs[0].X, xs[^1].X], y0 - 14, horizontal: true, m.K, [Math.Abs(xs[^1].X - xs[0].X) / m.K]);
+            var us = cols.Select(c => c.U).OrderBy(u => u).ToList();
+            Chain(page, m, layout, "разрез, оси", 2, true, us, y0 - 7);
+            Chain(page, m, layout, "разрез, оси", 3, true, [us[0], us[^1]], y0 - 14);
         }
+    }
+
+    /// <summary>Цепочка высот этажей слева от разреза (ряд 2) и общая высота (ряд 3) по отметкам уровней.</summary>
+    private static void DrawStoreyChain(PdfVectorPage page, Mapper m, List<(double V, string Text)> marks, double x0, DrawingDimensionLayout layout)
+    {
+        var vs = new List<double>();
+        foreach (double v in marks.Select(x => x.V).OrderBy(v => v))
+            if (vs.Count == 0 || v - vs[^1] > 0.0015) vs.Add(v);
+        if (vs.Count < 2) return;
+        Chain(page, m, layout, "разрез, высоты", 2, false, vs, x0 - 9);
+        Chain(page, m, layout, "разрез, высоты", 3, false, [vs[0], vs[^1]], x0 - 17);
     }
 
     private static void AxisBubble(PdfVectorPage page, double cx, double cy, string label)
@@ -1538,9 +1642,22 @@ public sealed class GostDrawingPdfExporter
         page.Text(label, cx, cy - h / 2, h, PdfTextAlign.Center);
     }
 
-    /// <summary>Размерная цепочка: размерная линия, засечки 45° (основная линия), выносные линии и значения в мм.</summary>
-    private static void DimChain(PdfVectorPage page, List<double> at, double offset, bool horizontal, double k, List<double> meters)
+    private const double DimText = 2.5;
+
+    /// <summary>
+    /// Размерная цепочка по точкам модели (м чертежа): точки округляются до целых мм модели, звенья печатаются разностями (Σ ≡ габариту),
+    /// размерная линия с выступом 2 мм, засечки 45° основной линией, выносные линии от точек. Текст звена — над линией по центру, если
+    /// помещается; иначе вразбежку под линией, затем на полке (выноска 45° и горизонтальная полка) — первое место без наложения.
+    /// </summary>
+    private static void Chain(PdfVectorPage page, Mapper m, DrawingDimensionLayout layout, string side, int row, bool horizontal, List<double> points, double offset)
     {
+        if (points.Count < 2) return;
+        var mm = points.Select(p => (long)Math.Round(p * 1000)).ToList();
+        var model = mm.Select(v => v / 1000.0).ToList();
+        var at = model.Select(v => horizontal ? m.P(v, 0).X : m.P(0, v).Y).ToList();
+        var values = new List<long>();
+        for (int i = 0; i + 1 < mm.Count; i++) values.Add(mm[i + 1] - mm[i]);
+
         page.LineWidth(Thin);
         if (horizontal) page.Line(at[0] - 2, offset, at[^1] + 2, offset);
         else page.Line(offset, at[0] - 2, offset, at[^1] + 2);
@@ -1549,18 +1666,78 @@ public sealed class GostDrawingPdfExporter
             page.LineWidth(Main);
             if (horizontal) page.Line(p - 1.2, offset - 1.2, p + 1.2, offset + 1.2);
             else page.Line(offset - 1.2, p - 1.2, offset + 1.2, p + 1.2);
+            page.LineWidth(Thin);
+            // Выносная линия: с выступом 1–2 мм за размерную линию.
+            if (horizontal) page.Line(p, offset - 2, p, offset + 2.5);
+            else page.Line(offset - 2.5, p, offset + 2, p);
         }
-        for (int i = 0; i + 1 < at.Count && i < meters.Count; i++)
+
+        // Локальная система цепочки: a — вдоль, c — поперёк (наружу от размерной линии, текст «над» линией).
+        DimensionTextBox Box(double a0, double a1, double c0, double c1, string text) => horizontal
+            ? new DimensionTextBox(a0, offset + c0, a1, offset + c1, text, $"{side}, ряд {row}")
+            : new DimensionTextBox(offset - c1, a0, offset - c0, a1, text, $"{side}, ряд {row}");
+        void Put(string text, double a, double c, PdfTextAlign align)
         {
-            string text = Math.Round(meters[i] * 1000).ToString("0", Ru);
-            double mid = (at[i] + at[i + 1]) / 2;
-            if (horizontal) page.Text(text, mid, offset + 1.0, 2.5, PdfTextAlign.Center);
-            else page.Text(text, offset - 1.0, mid, 2.5, PdfTextAlign.Center, 90);
+            if (horizontal) page.Text(text, a, offset + c, DimText, align);
+            else page.Text(text, offset - c, a, DimText, align, 90);
         }
+        (double, double) Pt(double a, double c) => horizontal ? (a, offset + c) : (offset - c, a);
+
+        for (int i = 0; i < values.Count; i++)
+        {
+            string text = values[i].ToString("0", Ru);
+            double w = page.TextWidth(text, DimText);
+            double mid = (at[i] + at[i + 1]) / 2, length = Math.Abs(at[i + 1] - at[i]);
+            bool fits = w + 0.8 <= length;
+            var above = Box(mid - w / 2, mid + w / 2, 1.0, 1.0 + DimText, text);
+            var below = Box(mid - w / 2, mid + w / 2, -1.1 - DimText, -1.1, text);
+            // Текст шире звена допустим над линией, пока он не задевает соседние числа (иначе — вразбежку под линией, затем на полке).
+            if (layout.IsFree(above) && (fits || w <= length + 4))
+            {
+                Put(text, mid, 1.0, PdfTextAlign.Center);
+                layout.Texts.Add(above);
+                if (!fits) layout.Relocated++;
+                continue;
+            }
+            if (layout.IsFree(below) && (fits || w <= length + 4))
+            {
+                Put(text, mid, -1.1 - DimText + 0.35, PdfTextAlign.Center);
+                layout.Texts.Add(below);
+                layout.Relocated++;
+                continue;
+            }
+            // Полка: выноска от середины звена под 45° и горизонтальная полка вправо или влево, выше на 4,5…12 мм.
+            bool placed = false;
+            foreach (double lift in new[] { 4.5, 8.0, 11.5 })
+                foreach (int dir in new[] { 1, -1 })
+                {
+                    if (placed) break;
+                    double a0 = dir > 0 ? mid + lift * 0.5 : mid - lift * 0.5 - w - 1;
+                    var shelf = Box(a0 + 0.5, a0 + 0.5 + w, lift + 0.3, lift + 0.3 + DimText, text);
+                    if (!layout.IsFree(shelf)) continue;
+                    page.LineWidth(Thin);
+                    var (sx, sy) = Pt(mid, 0);
+                    var (kx, ky) = Pt(dir > 0 ? a0 : a0 + w + 1, lift);
+                    page.Line(sx, sy, kx, ky);
+                    var (ex, ey) = Pt(dir > 0 ? a0 + w + 1 : a0, lift);
+                    page.Line(kx, ky, ex, ey);
+                    Put(text, a0 + 0.5, lift + 0.3, PdfTextAlign.Left);
+                    layout.Texts.Add(shelf);
+                    layout.Relocated++;
+                    placed = true;
+                    break;
+                }
+            if (placed) continue;
+            // Места нет — над линией (наложение покажет автопроверка).
+            Put(text, mid, 1.0, PdfTextAlign.Center);
+            layout.Texts.Add(above);
+        }
+        string title = row switch { 1 => "проёмы и простенки", 2 => "межосевые / по уровням", _ => "общий габарит" };
+        layout.Chains.Add(new DimensionChain(side, row, $"{side}, ряд {row} ({title})", horizontal, at, mm, values, points, m.K));
     }
 
     /// <summary>Высотные отметки справа от разреза: выносная линия, знак отметки (стрелка 45°), полка и значение.</summary>
-    private static void DrawLevelMarks(PdfVectorPage page, Mapper m, List<(double V, string Text)> marks, double xRight)
+    private static void DrawLevelMarks(PdfVectorPage page, Mapper m, List<(double V, string Text)> marks, double xRight, DrawingDimensionLayout layout)
     {
         double lastY = double.MinValue;
         int shift = 0;
@@ -1580,6 +1757,7 @@ public sealed class GostDrawingPdfExporter
             double tw = page.TextWidth(text, 2.5);
             page.Line(xm, y + 6, xm + tw + 2, y + 6);
             page.Text(text, xm + 1, y + 6.8, 2.5);
+            layout.Texts.Add(new DimensionTextBox(xm + 1, y + 6.8, xm + 1 + tw, y + 6.8 + 2.5, text, "отметки уровней"));
         }
     }
 
