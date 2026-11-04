@@ -108,3 +108,9 @@
 - `Screenshots/wave4_showcase_5_buildings.png` — пять снимков и пять поднятых моделей с K_исп.
 - `Screenshots/wave4_curved_viewport_with_ref.png` — дуговая башня; выделен дуговой витраж (стрела −8 173 мм, цвет #355D88), открыты Инспектор и «Фото-референс».
 - `Screenshots/wave4_curved_structural_fea.png` — режим «Конструкции» и «Аудит расчётной схемы»: 5/5, ΣF = ΣR_y = 867 701,7 кН.
+
+## Выпуск
+
+- Release-сборка и публикация self-contained win-x64 — без ошибок.
+- Инсталлятор: `Installer\Output\ArchitectStudioPro-1.0.0-DeveloperEdition-Setup.exe` (57,4 МБ; в Git не входит). В `.iss` добавлено `LZMAUseSeparateProcess=yes`: 32-битному ISCC не хватало адресного пространства для ultra64 × 4 потока («Out of memory»).
+- Тег `v1.0-developer` перенесён на итоговый коммит волны 4.

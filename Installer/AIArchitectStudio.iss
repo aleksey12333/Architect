@@ -41,6 +41,8 @@ OutputBaseFilename=ArchitectStudioPro-{#AppVersion}-DeveloperEdition-Setup
 Compression=lzma2/ultra64
 SolidCompression=yes
 LZMANumBlockThreads=4
+; Сжатие в отдельном 64-битном процессе: 32-битному ISCC не хватает адресного пространства для ultra64 × 4 потока.
+LZMAUseSeparateProcess=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName} {#AppVersion}
