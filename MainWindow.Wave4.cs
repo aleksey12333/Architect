@@ -222,6 +222,7 @@ public sealed partial class MainWindow
     }
 #endif
 
+#if DEBUG
     /// <summary>Ракурс как на снимке: спереди-слева (фронт здания — сторона −Z), чуть сверху, по габариту модели.</summary>
     private void FrontCamera(PhotoBimModel model, double azimuthDeg = -32, double elevationDeg = 16)
     {
@@ -246,6 +247,7 @@ public sealed partial class MainWindow
         PhotoMorphology.ArchSpan => -36,
         _ => -28
     };
+#endif
 
     private static async Task LoadBitmapAsync(BitmapImage bitmap, byte[] bytes)
     {
