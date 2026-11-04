@@ -212,6 +212,18 @@ public sealed class StructuralAnalysisService
         return steel >= 0.25 * concreteCapacity ? steel : 0;
     }
 
+    /// <summary>
+    /// Расстояние от грани до оси рабочей арматуры a, м: по явному армированию режима «Конструкции» (защитный слой + хомут + d/2),
+    /// иначе — значение нормы расчёта (то же число до бита).
+    /// </summary>
+    public static double RebarAxisDistance(AnalyticalElement m, double standard) => m.RebarCover > 0 ? m.RebarCover : standard;
+
+    /// <summary>μ рабочей арматуры: по площади заданных стержней As = n·π·d²/4, иначе — принятый расчётом.</summary>
+    public static double RebarRatio(AnalyticalElement m, double standard) => m.RebarMu > 0 ? m.RebarMu : standard;
+
+    /// <summary>q_sw хомутов балки, кН/м: по явному шагу (А240 Ø8, две ветви), иначе μsw = 0,25 % (прежняя формула).</summary>
+    public static double BeamStirrupQsw(AnalyticalElement m, double b, double rsw) => m.StirrupQsw > 0 ? m.StirrupQsw : rsw > 0 ? 170e3 * 0.0025 * b : 0;
+
     public static double PhiConcrete(double lambdaH)
     {
         (double L, double P)[] table = [(0, 0.92), (6, 0.92), (10, 0.90), (15, 0.83), (20, 0.70), (25, 0.58), (30, 0.48), (40, 0.32), (60, 0.15)];
@@ -637,7 +649,7 @@ public sealed class StructuralAnalysisService
             var r = st.R;
             st.HasResult = m.Checked;
             double h = Math.Max(0.05, m.Thickness);
-            double a = m.Role == AnalyticalRole.Foundation ? 0.07 : 0.03;
+            double a = RebarAxisDistance(m, m.Role == AnalyticalRole.Foundation ? 0.07 : 0.03);
             double h0 = Math.Max(0.03, h - a);
             if (onGrade)
             {
@@ -669,7 +681,7 @@ public sealed class StructuralAnalysisService
 
             if (m.Material.Kind == AnalyticalMaterialKind.Concrete)
             {
-                double mult = RcMoment(m.Material, 1, h, a, 0.004);
+                double mult = RcMoment(m.Material, 1, h, a, RebarRatio(m, 0.004));
                 double qult = 0.5 * m.Material.Rbt * h0;
                 r.KStrength = mult > 0 ? r.Moment / mult : 0;
                 r.KShear = qult > 0 ? r.Shear / qult : 0;
@@ -703,7 +715,7 @@ public sealed class StructuralAnalysisService
         {
             var st = S(slab);
             double h = Math.Max(0.05, slab.Thickness);
-            double h0 = Math.Max(0.03, h - (slab.Role == AnalyticalRole.Foundation ? 0.07 : 0.03));
+            double h0 = Math.Max(0.03, h - RebarAxisDistance(slab, slab.Role == AnalyticalRole.Foundation ? 0.07 : 0.03));
             var beams = supports.Where(sp => sp.Role == AnalyticalRole.Line).ToList();
             foreach (var (column, force) in st.ColumnReactions.GroupBy(c => c.Column).Select(g => (g.Key, g.Sum(x => x.D))))
             {
@@ -852,7 +864,7 @@ public sealed class StructuralAnalysisService
                 : m.Shape == AnalyticalShape.Polyline ? EffectiveEI(m.Material, m.BendingInertia) : EffectiveEI(m.Material, sec.IStrong);
             ei = Math.Max(1e-6, ei);
             bool mono = m.Material.Kind == AnalyticalMaterialKind.Concrete && sup.All(x => x.Support.Material.Kind == AnalyticalMaterialKind.Concrete);
-            double h0 = Math.Max(0.05, m.SectionH - 0.05);
+            double h0 = Math.Max(0.05, m.SectionH - RebarAxisDistance(m, 0.05));
 
             var spanUniform = new (double D, double N)[spans.Count];
             var spanPoints = spans.Select(_ => new List<(double X, double D, double N)>()).ToArray();
@@ -969,10 +981,11 @@ public sealed class StructuralAnalysisService
                 case AnalyticalMaterialKind.Concrete:
                 {
                     if (m.Shape == AnalyticalShape.Polyline) b = 0.6;
-                    double mult = RcMoment(m.Material, b, h, 0.05, 0.012);
-                    double h0 = h - 0.05;
-                    // Qb = 0.75·Rbt·b·h0 (c = 2h0) + Qsw = 1.5·qsw·h0, μsw = 0.25 % хомутов А240.
-                    double qsw = _rebar.Rsw > 0 ? 170e3 * 0.0025 * b : 0;
+                    double a = RebarAxisDistance(m, 0.05);
+                    double mult = RcMoment(m.Material, b, h, a, RebarRatio(m, 0.012));
+                    double h0 = h - a;
+                    // Qb = 0.75·Rbt·b·h0 (c = 2h0) + Qsw = 1.5·qsw·h0, μsw = 0.25 % хомутов А240 (или явный шаг хомутов).
+                    double qsw = BeamStirrupQsw(m, b, _rebar.Rsw);
                     double qult = 0.75 * m.Material.Rbt * b * h0 + 1.5 * qsw * h0;
                     r.KStrength = mult > 0 ? r.Moment / mult : 0;
                     r.KShear = qult > 0 ? r.Shear / qult : 0;
@@ -1056,7 +1069,7 @@ public sealed class StructuralAnalysisService
             {
                 case AnalyticalMaterialKind.Concrete:
                 {
-                    const double mu = 0.015, a = 0.04;
+                    double mu = RebarRatio(m, 0.015), a = RebarAxisDistance(m, 0.04);
                     double phi = PhiConcrete(lambda / Math.Sqrt(12));
                     double n0 = m.Material.Rc * sec.A + _rebar.Rsc * 1000 * mu * sec.A;
                     double hs = sec.HStrong;
@@ -1239,7 +1252,7 @@ public sealed class StructuralAnalysisService
                 r.DeflectionMm = 0;
                 r.DeflectionLimitMm = 0;
                 double h = Math.Max(0.05, m.ThickStruct);
-                double h0 = Math.Max(0.05, h - 0.07);
+                double h0 = Math.Max(0.05, h - RebarAxisDistance(m, 0.07));
                 foreach (var group in st.Points.Where(p => p.Punch && p.From is { IsColumnLike: true }).GroupBy(p => p.From!))
                     // Отпор грунта внутри основания пирамиды продавливания (грани под 45° — контур на h0) уменьшает F.
                     AddPunchingNode(m, group.Key, group.Sum(p => p.D), net, h0, m.Top, offsetForLoad: h0);

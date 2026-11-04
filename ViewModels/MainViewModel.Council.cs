@@ -132,13 +132,20 @@ public sealed partial class MainViewModel
 
     public bool IsSingleAgentMode
     {
-        get => !IsCouncilMode;
-        set { if (value) IsCouncilMode = false; }
+        get => !IsCouncilMode && !IsAgentMode;
+        set
+        {
+            if (!value) return;
+            IsCouncilMode = false;
+            IsAgentMode = false;
+        }
     }
 
     partial void OnIsCouncilModeChanged(bool value)
     {
-        if (!_syncingCouncil && _councilOverride is null) SaveSettingsSafe(s => s.Council.Enabled = value);
+        if (value && IsAgentMode) IsAgentMode = false;
+        // Переход в режим «Инженерный агент» — состояние сессии: выбор Совета КБ в настройках не перезаписывается.
+        if (!_syncingCouncil && _councilOverride is null && !IsAgentMode) SaveSettingsSafe(s => s.Council.Enabled = value);
         if (value) RefreshCouncilSlots();
     }
 

@@ -1986,6 +1986,14 @@
         <!-- ═══ Коллоквиум: «Проверка достоверности · Лист согласования правок» (сцена внешнего генератора → локальный аудитор) ═══ -->
         <views:ColloquiumReviewPanel x:Name="ReviewPanel" VerticalAlignment="Stretch"
                                      Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsReviewOpen), Mode=OneWay}" />
+
+        <!-- ═══ Инженерный агент: основная локальная модель, цепочка рассуждений, вызовы инструментов, отчёт (строится в MainWindow.Wave3) ═══ -->
+        <Border x:Name="AgentPanelHost" Style="{StaticResource SoftGlassStyle}" Padding="12,10,6,10" UseLayoutRounding="True" VerticalAlignment="Stretch"
+                Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsAgentPanelVisible), Mode=OneWay}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,8,0">
+                <StackPanel x:Name="AgentPanelContent" Spacing="8" />
+            </ScrollViewer>
+        </Border>
         </Grid>
 
         <!-- Свёрнутый док: полоса 48 px с числом реплик / правок и кнопкой разворота -->
@@ -2055,6 +2063,19 @@
                                             <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{x:Bind local:XamlHelpers.HexBrush(BadgeColorHex), Mode=OneWay}" Text="{x:Bind Badge, Mode=OneWay}" />
                                         </StackPanel>
                                     </Border>
+                                    <!-- Инженерный агент: разворачиваемая «Цепочка рассуждений (N шагов · расчёт проверен)» и вызванные инструменты -->
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="8" MinHeight="0"
+                                              Visibility="{x:Bind local:XamlHelpers.Vis(HasTrace)}"
+                                              Header="{x:Bind TraceSummary}">
+                                        <TextBlock Text="{x:Bind TraceDetails}" TextWrapping="Wrap" FontSize="11" UseLayoutRounding="True" IsTextSelectionEnabled="True"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                    </Expander>
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="8" MinHeight="0"
+                                              Visibility="{x:Bind local:XamlHelpers.Vis(HasToolCalls)}"
+                                              Header="{x:Bind ToolCallsSummary}">
+                                        <TextBlock Text="{x:Bind ToolCallsText}" TextWrapping="Wrap" FontSize="11" UseLayoutRounding="True" IsTextSelectionEnabled="True"
+                                                   FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    </Expander>
                                     <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="8" MinHeight="0"
                                               Visibility="{x:Bind local:XamlHelpers.Vis(HasReport)}"
                                               Header="{x:Bind ReportSummary}">
@@ -2321,12 +2342,25 @@
                         <TextBlock Text="{x:Bind ViewModel.HistoryLabel, Mode=OneWay}" UseLayoutRounding="True" />
                     </StackPanel>
                 </Button>
+                <!-- Локальное ядро: основная локальная модель программы (рейтинг, скорость, автовыбор) — Flyout строится в MainWindow.Wave3 -->
+                <Button x:Name="PrimaryModelChipButton" Style="{StaticResource ChipButtonStyle}" MaxWidth="390"
+                        ToolTipService.ToolTip="{x:Bind ViewModel.PrimaryModelChip, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{x:Bind local:XamlHelpers.HexBrush(ViewModel.PrimaryModelColorHex), Mode=OneWay}" />
+                        <FontIcon Glyph="&#xE950;" FontSize="12" />
+                        <TextBlock Text="{x:Bind ViewModel.PrimaryModelChip, Mode=OneWay}" TextTrimming="CharacterEllipsis" UseLayoutRounding="True"
+                                   Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsAgentMode), Mode=OneWay}" />
+                        <TextBlock Text="{x:Bind ViewModel.PrimaryModelRatingShort, Mode=OneWay}" UseLayoutRounding="True"
+                                   Visibility="{x:Bind local:XamlHelpers.VisNot(ViewModel.IsAgentMode), Mode=OneWay}" />
+                    </StackPanel>
+                </Button>
                 <Button Style="{StaticResource ChipButtonStyle}" Command="{x:Bind ViewModel.ToggleWebBridgeCommand}"
                         ToolTipService.ToolTip="{x:Bind L.T('WebOpenPanel', L.Language), Mode=OneWay}">
                     <FontIcon Glyph="&#xE774;" FontSize="12" />
                 </Button>
                 <!-- Визуальный контекст запроса: авто-снимок вида и план / эскиз — без снимков экрана и Ctrl+V -->
-                <Border Style="{StaticResource IslandStyle}" CornerRadius="14" Padding="2" UseLayoutRounding="True">
+                <Border Style="{StaticResource IslandStyle}" CornerRadius="14" Padding="2" UseLayoutRounding="True"
+                        Visibility="{x:Bind local:XamlHelpers.VisNot(ViewModel.IsAgentMode), Mode=OneWay}">
                     <ToggleButton Style="{StaticResource IconToggleStyle}" Height="24" Padding="10,0" CornerRadius="12" IsChecked="{x:Bind ViewModel.IsAutoSnapshot, Mode=TwoWay}"
                                   ToolTipService.ToolTip="{x:Bind L.T('AttachAutoTip', L.Language), Mode=OneWay}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -2336,6 +2370,7 @@
                     </ToggleButton>
                 </Border>
                 <Button Style="{StaticResource ChipButtonStyle}" Command="{x:Bind ViewModel.AttachFileCommand}"
+                        Visibility="{x:Bind local:XamlHelpers.VisNot(ViewModel.IsAgentMode), Mode=OneWay}"
                         ToolTipService.ToolTip="{x:Bind L.T('AttachFile', L.Language), Mode=OneWay}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE723;" FontSize="12" />
@@ -2349,14 +2384,22 @@
                 <StackPanel Orientation="Horizontal" Spacing="4">
                     <Border Style="{StaticResource SegmentTrackStyle}" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
-                            <RadioButton GroupName="AgentMode" Style="{StaticResource SegmentRadioStyle}" Padding="10,0" FontSize="11" Height="24"
+                            <RadioButton GroupName="AgentMode" Style="{StaticResource SegmentRadioStyle}" Padding="8,0" FontSize="11" Height="24"
                                          IsChecked="{x:Bind ViewModel.IsSingleAgentMode, Mode=TwoWay}" Content="{x:Bind L.T('CouncilSingle', L.Language), Mode=OneWay}" />
-                            <RadioButton GroupName="AgentMode" Style="{StaticResource SegmentRadioStyle}" Padding="10,0" FontSize="11" Height="24"
+                            <RadioButton GroupName="AgentMode" Style="{StaticResource SegmentRadioStyle}" Padding="8,0" FontSize="11" Height="24"
                                          IsChecked="{x:Bind ViewModel.IsCouncilMode, Mode=TwoWay}"
                                          ToolTipService.ToolTip="{x:Bind L.T('CouncilModeTip', L.Language), Mode=OneWay}">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE716;" FontSize="11" />
                                     <TextBlock Text="{x:Bind L.T('CouncilMulti', L.Language), Mode=OneWay}" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="AgentModeRadio" GroupName="AgentMode" Style="{StaticResource SegmentRadioStyle}" Padding="8,0" FontSize="11" Height="24"
+                                         IsChecked="{x:Bind ViewModel.IsAgentMode, Mode=TwoWay}"
+                                         ToolTipService.ToolTip="{x:Bind L.T('W3AgentModeTip', L.Language), Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE90F;" FontSize="11" />
+                                    <TextBlock Text="{x:Bind L.T('W3AgentModeShort', L.Language), Mode=OneWay}" />
                                 </StackPanel>
                             </RadioButton>
                         </StackPanel>
@@ -2487,6 +2530,7 @@
                     </Button>
 
                     <ToggleButton Style="{StaticResource IconToggleStyle}" Padding="8,0" Height="28" IsChecked="{x:Bind ViewModel.IsCouncilTimelineOpen, Mode=TwoWay}"
+                                  Visibility="{x:Bind local:XamlHelpers.VisNot(ViewModel.IsAgentMode), Mode=OneWay}"
                                   ToolTipService.ToolTip="{x:Bind L.T('CouncilTimeline', L.Language), Mode=OneWay}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE8F2;" FontSize="12" />
@@ -2494,9 +2538,11 @@
                         </StackPanel>
                     </ToggleButton>
 
-                    <Border Width="1" Height="18" Margin="2,0" VerticalAlignment="Center" Background="{StaticResource StudioBorderBrush}" />
+                    <Border Width="1" Height="18" Margin="2,0" VerticalAlignment="Center" Background="{StaticResource StudioBorderBrush}"
+                            Visibility="{x:Bind local:XamlHelpers.VisNot(ViewModel.IsAgentMode), Mode=OneWay}" />
 
                     <Button Style="{StaticResource PillChipStyle}" Height="28" Background="{StaticResource AccentSoftBrush}" Command="{x:Bind ViewModel.RunCouncilAuditCommand}"
+                            Visibility="{x:Bind local:XamlHelpers.VisNot(ViewModel.IsAgentMode), Mode=OneWay}"
                             ToolTipService.ToolTip="{x:Bind L.T('CouncilAuditTip', L.Language), Mode=OneWay}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE721;" FontSize="12" Foreground="{StaticResource AccentBrush}" />

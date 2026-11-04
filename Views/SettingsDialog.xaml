@@ -464,6 +464,9 @@
                         </Grid>
                     </Border>
 
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('W3CoreModel', L.Language)}" />
+                    <Border x:Name="PrimaryModelHost" />
+
                     <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="{x:Bind L.T('ApiKeysTitle', L.Language)}" />
                     <Border Style="{StaticResource SettingsGroupStyle}" Padding="14,12">
                         <StackPanel Spacing="6">

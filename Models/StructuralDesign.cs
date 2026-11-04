@@ -155,6 +155,73 @@ public static class StructuralDesign
         if (source.UserParameters is null) return;
         if (m.Role == AnalyticalRole.Vertical) m.LengthFactor = LengthFactor(Fixity(source));
         if (m.Role is AnalyticalRole.Slab or AnalyticalRole.Foundation && HasPunchingRebar(source)) m.PunchingQsw = PunchingQsw(source);
+        if (Layout(source) is { } layout)
+        {
+            m.RebarCover = layout.AxisDistance;
+            m.RebarMu = layout.Mu;
+            m.StirrupQsw = layout.StirrupQsw;
+        }
+    }
+
+    // ───────────── Явное армирование: раскладка стержней (общая для расчёта и 3D-каркаса) ─────────────
+
+    /// <summary>Диаметр хомутов и поперечных стержней каркасов, м (А240 Ø8).</summary>
+    public const double StirrupBarDiameter = 0.008;
+
+    /// <summary>Защитный слой бетона до хомута (или до стержня сетки) по умолчанию, м.</summary>
+    public const double DefaultCover = 0.04;
+
+    /// <summary>Наибольший шаг рабочих стержней по контуру сечения и стержней сетки, м.</summary>
+    public const double MaxBarPitch = 0.2;
+
+    /// <summary>Шаг поперечных стержней сетки плиты при явном армировании: шаг хомутов, иначе 200 мм.</summary>
+    public static double MeshPitch(ArchitecturalElement e) => StirrupSpacing(e) ?? MaxBarPitch;
+
+    /// <summary>Стержней в ряду длиной span (между осями крайних стержней) при шаге ≤ 200 мм.</summary>
+    public static int RowBarCount(double span) => Math.Max(2, (int)Math.Ceiling(Math.Max(0, span) / MaxBarPitch) + 1);
+
+    /// <summary>Стержней по окружности радиуса r (шаг ≈ 150 мм, не меньше 6).</summary>
+    public static int RoundBarCount(double r) => Math.Max(6, (int)Math.Round(2 * Math.PI * r / 0.15));
+
+    /// <summary>Рабочих стержней по контуру прямоугольного сечения: два ряда по u и промежуточные по v.</summary>
+    public static int PerimeterBarCount(double spanU, double spanV) => 2 * RowBarCount(spanU) + 2 * (RowBarCount(spanV) - 2);
+
+    /// <summary>
+    /// Раскладка явного армирования элемента (задан диаметр рабочей арматуры): расстояние до оси стержня a, μ по фактической
+    /// площади стержней As = n·π·d²/4 и q_sw хомутов балки. null — параметров нет, расчёт и каркас прежние.
+    /// </summary>
+    public static RebarLayout? Layout(ArchitecturalElement e)
+    {
+        if (BarDiameter(e) is not double d || !AIArchitectStudio.Services.ReinforcementCalculator.IsReinforced(e)) return null;
+        double c = Cover(e) ?? DefaultCover, ds = StirrupBarDiameter, bar = Math.PI * d * d / 4;
+        switch (e.Category)
+        {
+            case BimCategory.Column:
+            {
+                double a = c + ds + d / 2;
+                bool round = e.EffectiveProfile == ProfileTypes.Circle;
+                double w = Math.Max(0.1, e.Width), dp = Math.Max(0.1, e.Depth);
+                int n = round ? RoundBarCount(Math.Max(0.01, Math.Min(w, dp) / 2 - a)) : PerimeterBarCount(Math.Max(0.02, w - 2 * a), Math.Max(0.02, dp - 2 * a));
+                double area = round ? Math.PI * w * dp / 4 : w * dp;
+                return new RebarLayout(d, c, a, n, n * bar / area, 0);
+            }
+            case BimCategory.Beam:
+            {
+                // Сечение балки D × H: растянутый нижний ряд по ширине b = D.
+                double a = c + ds + d / 2, b = Math.Max(0.1, e.Depth), h = Math.Max(0.1, e.Height);
+                int n = RowBarCount(Math.Max(0.02, b - 2 * a));
+                double qsw = StirrupSpacing(e) is double s ? PunchingRsw * 2 * Math.PI * ds * ds / 4 / s : 0;
+                return new RebarLayout(d, c, a, n, n * bar / (b * Math.Max(0.02, h - a)), qsw);
+            }
+            case BimCategory.Slab or BimCategory.CantileverSlab or BimCategory.Roof or BimCategory.Terrace or BimCategory.Foundation:
+            {
+                double a = c + d / 2, h = Math.Max(0.05, MaterialLayers.StructuralThickness(e));
+                double perMeter = 1 / MeshPitch(e);
+                return new RebarLayout(d, c, a, (int)Math.Round(perMeter), perMeter * bar / Math.Max(0.02, h - a), 0);
+            }
+            default:
+                return null;
+        }
     }
 
     private static double? Read(ArchitecturalElement e, Guid guid, double min, double max)
@@ -164,3 +231,9 @@ public static class StructuralDesign
         return v.IsEmpty || !double.IsFinite(v.AsDouble()) ? null : Math.Clamp(v.AsDouble(), min, max);
     }
 }
+
+/// <summary>
+/// Раскладка явного армирования: диаметр рабочих стержней d и защитный слой c (м), расстояние от грани до оси стержня a (м),
+/// число рабочих стержней (колонна — по контуру, балка — нижний ряд, плита — на 1 м), μ по фактической площади и q_sw хомутов, кН/м.
+/// </summary>
+public readonly record struct RebarLayout(double Diameter, double Cover, double AxisDistance, int Bars, double Mu, double StirrupQsw);

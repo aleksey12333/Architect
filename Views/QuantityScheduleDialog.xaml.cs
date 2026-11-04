@@ -49,6 +49,8 @@ public sealed partial class QuantityScheduleDialog : ContentDialog
         CostTitleText.Text = _loc.Get("CostTitle");
         CatalogLabel.Text = _loc.Get("PriceCatalog");
         LoadPriceText.Text = _loc.Get("PriceLoad");
+        PullPriceText.Text = _loc.Get("W3PricePull");
+        ToolTipService.SetToolTip(PullPriceButton, _loc.Get("W3PricePullTip"));
         TemplateText.Text = _loc.Get("PriceTemplate");
         ToolTipService.SetToolTip(LoadPriceButton, _loc.Get("PriceLoadTip"));
         ToolTipService.SetToolTip(TemplateButton, _loc.Get("PriceTemplateTip"));
@@ -280,6 +282,15 @@ public sealed partial class QuantityScheduleDialog : ContentDialog
         if (_syncingCatalogs || CatalogCombo.SelectedIndex < 0) return;
         int index = CatalogCombo.SelectedIndex;
         _vm.SelectPriceCatalog(index == 0 || index > _catalogs.Count ? null : _catalogs[index - 1].Name);
+    }
+
+    /// <summary>Пользователь выбрал «Подтянуть цены по ссылке / из сметы…»: окно закрывается, главное окно открывает веб-импорт и возвращает ведомость.</summary>
+    public bool PullPricesRequested { get; private set; }
+
+    private void OnPullPriceClick(object sender, RoutedEventArgs e)
+    {
+        PullPricesRequested = true;
+        Hide();
     }
 
     private async void OnLoadPriceClick(object sender, RoutedEventArgs e)

@@ -151,7 +151,8 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="300" />
+                        <ColumnDefinition Width="240" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
@@ -170,6 +171,13 @@
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE74E;" FontSize="12" />
                             <TextBlock x:Name="TemplateText" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="PullPriceButton" Grid.Column="6" Height="28" Padding="10,0" CornerRadius="6" FontSize="12" Click="OnPullPriceClick"
+                            Background="{StaticResource AccentSoftBrush}" Foreground="{StaticResource AccentBrush}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE774;" FontSize="12" />
+                            <TextBlock x:Name="PullPriceText" />
                         </StackPanel>
                     </Button>
                 </Grid>

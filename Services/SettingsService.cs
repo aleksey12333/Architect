@@ -67,6 +67,12 @@ public sealed class AppSettings
     /// <summary>Адрес локального ИИ-сервера Ollama.</summary>
     public string OllamaEndpoint { get; set; } = OllamaProcessManager.DefaultEndpoint;
 
+    /// <summary>
+    /// Основная локальная модель программы, выбранная вручную (null — автовыбор лучшей по инженерному рейтингу; по умолчанию не пишется).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PrimaryLocalModelId { get; set; }
+
     /// <summary>Запускать <c>ollama serve</c> скрыто при старте, если сервер не отвечает (Zero-Config).</summary>
     public bool OllamaAutoStart { get; set; } = true;
 

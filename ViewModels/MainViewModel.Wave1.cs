@@ -16,7 +16,7 @@ public sealed partial class MainViewModel
     // ───────────────────────────── Боковой док Коллоквиума ─────────────────────────────
 
     /// <summary>Док виден, пока открыта лента Коллоквиума или лист согласования: вьюпорт сужается, но не перекрывается.</summary>
-    public bool IsCouncilDockVisible => IsCouncilTimelineOpen || Review is not null;
+    public bool IsCouncilDockVisible => IsCouncilTimelineOpen || Review is not null || IsAgentPanelOpen;
 
     /// <summary>Док свёрнут в полосу 48 px (лента и лист — по кнопке разворота).</summary>
     [ObservableProperty]
@@ -39,6 +39,7 @@ public sealed partial class MainViewModel
     private void CloseCouncilDock()
     {
         IsCouncilTimelineOpen = false;
+        IsAgentPanelOpen = false;
         IsCouncilDockCollapsed = Review is not null;
     }
 

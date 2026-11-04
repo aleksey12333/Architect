@@ -107,6 +107,7 @@ public sealed partial class MainViewModel : ObservableObject
         InitializeAttachments();
         InitializeWave1();
         InitializeWave2();
+        InitializeWave3();
     }
 
     /// <summary>Стартовая сцена (шаблон стартового окна или Пресет 1 без оболочки): без записи в Undo и без пометки «изменено».</summary>
@@ -437,7 +438,7 @@ public sealed partial class MainViewModel : ObservableObject
     public string SelectedHint => Scene.SelectedElement is { } el ? Loc.Format("ChatSelectedHint", el.DisplayTitle) : string.Empty;
 
     /// <summary>Плейсхолдер капсулы ИИ: при выделении подсказывает, что запрос изменит выбранный объект.</summary>
-    public string ChatPlaceholder => Scene.SelectedElement is null ? Loc.Get(IsCouncilMode ? "CouncilPlaceholder" : "ChatPlaceholder") : SelectedHint;
+    public string ChatPlaceholder => Scene.SelectedElement is null ? Loc.Get(IsAgentMode ? "W3AgentPlaceholder" : IsCouncilMode ? "CouncilPlaceholder" : "ChatPlaceholder") : SelectedHint;
 
     private bool CanSendChat() => !string.IsNullOrWhiteSpace(ChatInput) && !IsBusy;
 
@@ -447,6 +448,14 @@ public sealed partial class MainViewModel : ObservableObject
         var text = ChatInput.Trim();
         if (text.Length == 0) return;
         ChatInput = string.Empty;
+
+        // Режим «Инженерный агент»: задача уходит агенту (инструменты программы, без снимков вида).
+        if (IsAgentMode)
+        {
+            ChatMessages.Add(ChatMessageModel.User(text));
+            await RunAgentAsync(text);
+            return;
+        }
 
         var target = Scene.SelectedElement;
         // Визуальный контекст: свежий авто-снимок вида и прикреплённые планы/эскизы — без ручной вставки.

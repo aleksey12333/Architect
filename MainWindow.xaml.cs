@@ -1,4 +1,4 @@
-﻿using System.Collections.Specialized;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using AIArchitectStudio.Models;
 using AIArchitectStudio.Services;
@@ -53,6 +53,7 @@ public sealed partial class MainWindow : Window
         InspectorIsland.SizeChanged += (_, _) => UpdateAiDockMargin();
         InitializeBlock34();
         InitializeWave2();
+        InitializeWave3();
 #if DEBUG
         ApplyDebugStartupOptions();
 #endif
@@ -716,7 +717,7 @@ public sealed partial class MainWindow : Window
         try
         {
             var dialog = new SettingsDialog(_settings, L, ViewModel.ModelRegistry,
-                App.Services.GetRequiredService<AiKeyInspectorService>(), m => ViewModel.ModelLabel(m), ViewModel.ApplySiteNorms)
+                App.Services.GetRequiredService<AiKeyInspectorService>(), m => ViewModel.ModelLabel(m), ViewModel.ApplySiteNorms, () => PrimaryModelPlate(compact: false))
             {
                 XamlRoot = Content.XamlRoot,
                 RequestedTheme = _theme.Current.IsLight ? ElementTheme.Light : ElementTheme.Dark
@@ -754,6 +755,7 @@ public sealed partial class MainWindow : Window
     {
         if (_quantitiesOpen || _settingsOpen) return;
         _quantitiesOpen = true;
+        bool pull = false;
         try
         {
             var dialog = new QuantityScheduleDialog(ViewModel, SaveProjectForEstimateAsync, PickPriceFileAsync, PickPriceTemplatePathAsync)
@@ -773,10 +775,17 @@ public sealed partial class MainWindow : Window
                 };
 #endif
             await dialog.ShowAsync();
+            pull = dialog.PullPricesRequested;
         }
         finally
         {
             _quantitiesOpen = false;
+        }
+        // «Подтянуть цены по ссылке / из сметы…»: одно окно за раз — веб-импорт с проверкой, затем ведомость снова.
+        if (pull)
+        {
+            await ShowPriceVerificationAsync(null);
+            await ShowQuantitiesAsync();
         }
     }
 

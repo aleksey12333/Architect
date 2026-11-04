@@ -282,7 +282,8 @@ public static class CalculationJustificationService
             {
                 case AnalyticalMaterialKind.Concrete:
                 {
-                    const double mu = 0.015, a = 0.04;
+                    double mu = StructuralAnalysisService.RebarRatio(m, 0.015), a = StructuralAnalysisService.RebarAxisDistance(m, 0.04);
+                    bool explicitRebar = m.RebarMu > 0;
                     double phi = StructuralAnalysisService.PhiConcrete(lambda / Math.Sqrt(12));
                     double n0 = m.Material.Rc * sec.A + _rebar.Rsc * 1000 * mu * sec.A;
                     double hs = sec.HStrong;
@@ -293,12 +294,12 @@ public static class CalculationJustificationService
                     Steps.Add(new CalculationStep("Коэффициент продольного изгиба", $"{Sp63}, табл. 8.1 (длительная нагрузка)",
                         "φ = f(l0/h), l0/h = λ / √12", $"l0/h = {F(lambda / Math.Sqrt(12))} → φ = {F(phi)}", phi, string.Empty, SolverValue: r.Phi, Verified: Same(phi, r.Phi)));
                     Steps.Add(new CalculationStep("Предельная продольная сила", $"{Sp63}, п. 8.1.16",
-                        "N_ult = Rb·A + Rsc·As, As = μ·A (μ = 1,5 %)", $"N_ult = {F(m.Material.Rc / 1000)}·10³·{F(sec.A)} + {F(_rebar.Rsc)}·10³·{F(mu * sec.A)} = {F(n0)} кН", n0, "кН"));
+                        explicitRebar ? $"N_ult = Rb·A + Rsc·As, As = n·π·d²/4 по заданным стержням (μ = {F(mu * 100)} %)" : "N_ult = Rb·A + Rsc·As, As = μ·A (μ = 1,5 %)", $"N_ult = {F(m.Material.Rc / 1000)}·10³·{F(sec.A)} + {F(_rebar.Rsc)}·10³·{F(mu * sec.A)} = {F(n0)} кН", n0, "кН"));
                     double ks = n / Math.Max(1e-6, phi * n0);
                     Check("Устойчивость (внецентренное сжатие)", $"{Sp63}, п. 8.1.4, 8.1.16", "K_уст = N / (φ·N_ult)",
                         $"K = {F(n)} / ({F(phi)}·{F(n0)})", G(ks), r.KStability, ref kStability);
                     Steps.Add(new CalculationStep("Предельный момент при действующей N", $"{Sp63}, п. 8.1.14, 8.1.20",
-                        "M0 = Rs·(As/2)·(h − 2a), Mu(N) = M0 + 0,5·N·h·(1 − N/N_ult)", $"M0 = {F(m0)} кН·м, Mu = {F(muN)} кН·м (h = {Mm(hs)} мм, a = 40 мм)", muN, "кН·м"));
+                        "M0 = Rs·(As/2)·(h − 2a), Mu(N) = M0 + 0,5·N·h·(1 − N/N_ult)", $"M0 = {F(m0)} кН·м, Mu = {F(muN)} кН·м (h = {Mm(hs)} мм, a = {Mm(a)} мм)", muN, "кН·м"));
                     double kst = n > n0 ? n / n0 : moment / Math.Max(1e-6, muN);
                     Check("Прочность нормального сечения", $"{Sp63}, п. 8.1.14", n > n0 ? "K = N / N_ult" : "K = M / Mu(N)",
                         n > n0 ? $"K = {F(n)} / {F(n0)}" : $"K = {F(moment)} / {F(muN)}", G(kst), r.KStrength, ref kStrength);
@@ -471,18 +472,21 @@ public static class CalculationJustificationService
                 case AnalyticalMaterialKind.Concrete:
                 {
                     if (m.Shape == AnalyticalShape.Polyline) b = 0.6;
-                    double mult = StructuralAnalysisService.RcUltimateMoment(m.Material.Rc, _rebar.Rs, b, h, 0.05, 0.012);
-                    double h0 = h - 0.05;
-                    double qsw = _rebar.Rsw > 0 ? 170e3 * 0.0025 * b : 0;
+                    double a = StructuralAnalysisService.RebarAxisDistance(m, 0.05), mu = StructuralAnalysisService.RebarRatio(m, 0.012);
+                    double mult = StructuralAnalysisService.RcUltimateMoment(m.Material.Rc, _rebar.Rs, b, h, a, mu);
+                    double h0 = h - a;
+                    double qsw = StructuralAnalysisService.BeamStirrupQsw(m, b, _rebar.Rsw);
                     double qult = 0.75 * m.Material.Rbt * b * h0 + 1.5 * qsw * h0;
-                    double x = Math.Min(_rebar.Rs * 1000 * (0.012 * b * Math.Max(0.02, h - 0.05)) / (m.Material.Rc * b), 0.5 * Math.Max(0.02, h - 0.05));
+                    double x = Math.Min(_rebar.Rs * 1000 * (mu * b * Math.Max(0.02, h - a)) / (m.Material.Rc * b), 0.5 * Math.Max(0.02, h - a));
                     Steps.Add(new CalculationStep("Предельный момент сечения", $"{Sp63}, п. 8.1.8, формулы (8.1), (8.3)",
-                        "x = Rs·As / (Rb·b) ≤ 0,5·h0, M_ult = Rb·b·x·(h0 − x/2), As = μ·b·h0 (μ = 1,2 %)",
-                        $"b = {Mm(b)} мм, h0 = {Mm(h0)} мм, x = {Mm(x)} мм, M_ult = {F(mult)} кН·м", mult, "кН·м"));
+                        m.RebarMu > 0 ? $"x = Rs·As / (Rb·b) ≤ 0,5·h0, M_ult = Rb·b·x·(h0 − x/2), As = n·π·d²/4 по заданным стержням (μ = {F(mu * 100)} %)"
+                            : "x = Rs·As / (Rb·b) ≤ 0,5·h0, M_ult = Rb·b·x·(h0 − x/2), As = μ·b·h0 (μ = 1,2 %)",
+                        $"b = {Mm(b)} мм, h0 = {Mm(h0)} мм (a = {Mm(a)} мм), x = {Mm(x)} мм, M_ult = {F(mult)} кН·м", mult, "кН·м"));
                     Check("Прочность по нормальному сечению", $"{Sp63}, п. 8.1.8", "K = M / M_ult", $"K = {F(r.Moment)} / {F(mult)}", G(mult > 0 ? r.Moment / mult : 0), r.KStrength, ref kStrength);
-                    Check("Прочность по наклонному сечению", $"{Sp63}, п. 8.1.33, 8.1.34", "Q_ult = 0,75·Rbt·b·h0 + 1,5·qsw·h0, qsw = Rsw·Asw/s (μsw = 0,25 %)",
+                    Check("Прочность по наклонному сечению", $"{Sp63}, п. 8.1.33, 8.1.34",
+                        m.StirrupQsw > 0 ? "Q_ult = 0,75·Rbt·b·h0 + 1,5·qsw·h0, qsw = Rsw·Asw/s (Ø8 А240, 2 ветви, заданный шаг)" : "Q_ult = 0,75·Rbt·b·h0 + 1,5·qsw·h0, qsw = Rsw·Asw/s (μsw = 0,25 %)",
                         $"Q = {F(r.Shear)} кН, Q_ult = {F(qult)} кН", G(qult > 0 ? r.Shear / qult : 0), r.KShear, ref kShear);
-                    MuMinStep(0.012, "балка");
+                    MuMinStep(mu, "балка");
                     break;
                 }
                 case AnalyticalMaterialKind.Steel when m.Category == BimCategory.Truss:
@@ -535,7 +539,7 @@ public static class CalculationJustificationService
                 $"M = α·q·L²/{kM:0} + P/4 (пролёт), M_к = q·c²/2 (консоль)",
                 $"q = {F(qd)} кПа, L = {F(plan.Span)} м, α = {F(plan.SpanFactor)}, c = {F(plan.Cantilever)} м → α·q·L²/{kM:0} = {F(uniform)}, q·c²/2 = {F(cant)}; " +
                 $"M = {F(r.Moment)} кН·м/м{(r.Moment > Math.Max(uniform, cant) + 1e-9 ? " (с сосредоточенными силами P)" : string.Empty)}", r.Moment, "кН·м/м"));
-            SlabCapacity(h, 0.03);
+            SlabCapacity(h, StructuralAnalysisService.RebarAxisDistance(m, 0.03));
         }
 
         private void Foundation(AnalyticalPanel f)
@@ -552,7 +556,7 @@ public static class CalculationJustificationService
                 Taken("Прочность плиты", $"{Sp63}, п. 8.1.8", "опор над плитой нет — конструктивная проверка", string.Empty, r.KStrength);
                 kShear = r.KShear;
             }
-            else SlabCapacity(h, 0.07);
+            else SlabCapacity(h, StructuralAnalysisService.RebarAxisDistance(m, 0.07));
             double pn = s.SoilBearingKPa > 0 ? r.KSoil / _gn * Math.Max(1, s.SoilBearingKPa) : 0;
             Taken("Давление на грунт основания", "СП 22.13330.2016, п. 5.6.7", "K = p_n / R", $"p_n = {F(pn)} кПа (нормативное), R = {F(s.SoilBearingKPa)} кПа", r.KSoil);
         }
@@ -563,14 +567,16 @@ public static class CalculationJustificationService
             double h0 = Math.Max(0.03, h - a);
             if (Concrete)
             {
-                double mult = StructuralAnalysisService.RcUltimateMoment(m.Material.Rc, _rebar.Rs, 1, h, a, 0.004);
+                double mu = StructuralAnalysisService.RebarRatio(m, 0.004);
+                double mult = StructuralAnalysisService.RcUltimateMoment(m.Material.Rc, _rebar.Rs, 1, h, a, mu);
                 double qult = 0.5 * m.Material.Rbt * h0;
-                Steps.Add(new CalculationStep("Предельный момент полосы 1 м", $"{Sp63}, п. 8.1.8", "M_ult = Rb·b·x·(h0 − x/2), As = μ·b·h0 (μ = 0,4 %)",
+                Steps.Add(new CalculationStep("Предельный момент полосы 1 м", $"{Sp63}, п. 8.1.8",
+                    m.RebarMu > 0 ? $"M_ult = Rb·b·x·(h0 − x/2), As = n·π·d²/4 на 1 м по заданной сетке (μ = {F(mu * 100)} %)" : "M_ult = Rb·b·x·(h0 − x/2), As = μ·b·h0 (μ = 0,4 %)",
                     $"h0 = {Mm(h0)} мм (a = {Mm(a)} мм), M_ult = {F(mult)} кН·м/м", mult, "кН·м/м"));
                 Check("Прочность по нормальному сечению", $"{Sp63}, п. 8.1.8", "K = M / M_ult", $"K = {F(r.Moment)} / {F(mult)}", G(mult > 0 ? r.Moment / mult : 0), r.KStrength, ref kStrength);
                 Check("Поперечная сила без поперечной арматуры", $"{Sp63}, п. 8.1.32", "Q_ult = 0,5·Rbt·b·h0", $"Q = {F(r.Shear)} кН/м, Q_ult = {F(qult)} кН/м",
                     G(qult > 0 ? r.Shear / qult : 0), r.KShear, ref kShear);
-                MuMinStep(0.004, "плита");
+                MuMinStep(mu, "плита");
             }
             else
             {

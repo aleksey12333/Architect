@@ -140,7 +140,7 @@ public static class FeaLogicalAuditService
             case AnalyticalMaterialKind.Concrete:
             {
                 // Те же формулы, что у солвера: N0 = Rb·A + Rsc·μ·A; Mu(N) = M0 + 0,5·N·h·(1 − N/N0) (μ = 1,5 %, a = 40 мм).
-                const double mu = 0.015, cover = 0.04;
+                double mu = StructuralAnalysisService.RebarRatio(m, 0.015), cover = StructuralAnalysisService.RebarAxisDistance(m, 0.04);
                 double n0 = m.Material.Rc * sec.A + rebar.Rsc * 1000 * mu * sec.A;
                 double hs = sec.HStrong;
                 double m0 = rebar.Rs * 1000 * (mu / 2 * sec.A) * Math.Max(0.05, hs - 2 * cover);
@@ -184,7 +184,7 @@ public static class FeaLogicalAuditService
         double rMat = (m.Material.Kind == AnalyticalMaterialKind.Timber ? m.Material.Rbend : m.Material.Rc) / 1000, rSection, rShear;
         if (m.Material.Kind == AnalyticalMaterialKind.Concrete)
         {
-            double mult = StructuralAnalysisService.RcUltimateMoment(m.Material.Rc, rebar.Rs, b, h, 0.05, 0.012);
+            double mult = StructuralAnalysisService.RcUltimateMoment(m.Material.Rc, rebar.Rs, b, h, StructuralAnalysisService.RebarAxisDistance(m, 0.05), StructuralAnalysisService.RebarRatio(m, 0.012));
             rSection = mult / Math.Max(1e-9, w) / 1000;
             rShear = m.Material.Rbt / 1000;
         }
@@ -207,7 +207,7 @@ public static class FeaLogicalAuditService
         if (m.Material.Kind == AnalyticalMaterialKind.Concrete)
         {
             rMat = m.Material.Rc / 1000;
-            rSection = StructuralAnalysisService.RcUltimateMoment(m.Material.Rc, rebar.Rs, 1, h, a, 0.004) / w / 1000;
+            rSection = StructuralAnalysisService.RcUltimateMoment(m.Material.Rc, rebar.Rs, 1, h, StructuralAnalysisService.RebarAxisDistance(m, a), StructuralAnalysisService.RebarRatio(m, 0.004)) / w / 1000;
             rShear = m.Material.Rbt / 1000;
         }
         else

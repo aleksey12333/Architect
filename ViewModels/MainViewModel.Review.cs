@@ -91,16 +91,19 @@ public sealed partial class MainViewModel
     public bool HasReviewFixes => ReviewFixes.Count > 0;
 
     /// <summary>Лента Коллоквиума скрывается, пока открыт лист согласования (то же место экрана).</summary>
-    public bool IsCouncilTimelineVisible => IsCouncilTimelineOpen && Review is null;
+    public bool IsCouncilTimelineVisible => IsCouncilTimelineOpen && Review is null && !IsAgentPanelOpen;
 
     partial void OnIsCouncilTimelineOpenChanged(bool value)
     {
+        // Лента и панель Инженерного агента занимают одно место дока: открытая лента сменяет панель агента.
+        if (value && IsAgentPanelOpen) IsAgentPanelOpen = false;
         OnPropertyChanged(nameof(IsCouncilTimelineVisible));
         RefreshCouncilDock();
     }
 
     partial void OnReviewChanged(VerificationGateReport? value)
     {
+        OnPropertyChanged(nameof(IsAgentPanelVisible));
         // Новый лист согласования разворачивает боковой док (свёрнутая полоса — только по выбору пользователя).
         if (value is not null) IsCouncilDockCollapsed = false;
         RefreshCouncilDock();

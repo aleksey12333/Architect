@@ -92,6 +92,22 @@ public sealed partial class ChatMessageModel : ObservableObject
 
     [JsonIgnore] public bool HasBadge => Badge.Length > 0;
 
+    /// <summary>Цепочка рассуждений Инженерного агента (только в сессии, в .aia не пишется).</summary>
+    [JsonIgnore] public ReasoningTrace? Trace { get; set; }
+
+    [JsonIgnore] public bool HasTrace => Trace is not null;
+    [JsonIgnore] public string TraceSummary => Trace?.Summary ?? string.Empty;
+    [JsonIgnore] public string TraceDetails => Trace?.ToText() ?? string.Empty;
+
+    /// <summary>Вызванные инструменты агента: «Аудит расчётной схемы — критериев 5 из 5…».</summary>
+    [JsonIgnore] public IReadOnlyList<AgentToolCall> ToolCalls { get; set; } = [];
+
+    [JsonIgnore] public bool HasToolCalls => ToolCalls.Count > 0;
+    [JsonIgnore] public string ToolCallsSummary => $"Вызванные инструменты · {ToolCalls.Count}";
+
+    [JsonIgnore]
+    public string ToolCallsText => string.Join("\n", ToolCalls.Select(c => $"{c.Title} ({c.Name}) — {(c.Status == AgentToolStatus.Succeeded ? "выполнено" : c.Status == AgentToolStatus.Failed ? "ошибка" : "пропущено")}: {c.Summary}"));
+
     public static ChatMessageModel User(string text) => new() { Role = ChatRole.User, Text = text };
     public static ChatMessageModel System(string text) => new() { Role = ChatRole.System, Text = text };
 

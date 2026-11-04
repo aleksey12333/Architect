@@ -123,6 +123,15 @@ public abstract class AnalyticalElement
     /// <summary>Поперечная арматура продавливания плиты: q_sw, кН/м контура (0 — нет, F_sw,ult не учитывается).</summary>
     public double PunchingQsw;
 
+    /// <summary>Расстояние от грани до оси рабочих стержней a, м, по явному армированию режима «Конструкции» (0 — норма расчёта).</summary>
+    public double RebarCover;
+
+    /// <summary>Процент армирования μ = As / (b·h0) (колонна — As / A) по явным стержням (0 — принятый расчётом).</summary>
+    public double RebarMu;
+
+    /// <summary>Погонное усилие хомутов балки q_sw = R_sw·A_sw / s_w, кН/м, по явному шагу (0 — μsw = 0,25 %).</summary>
+    public double StirrupQsw;
+
     /// <summary>Квадратурные точки фундамента / ненесущей площадки (вес — площадь).</summary>
     public List<(double X, double Z, double A)>? Samples;
 

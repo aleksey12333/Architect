@@ -35,7 +35,7 @@ public sealed partial class SettingsDialog : ContentDialog
 
     /// <param name="applyNorms">«Применить к текущему проекту»: снег (кг/м²), ветер (кг/м²), класс сооружения 1–3; null — запись в настройки.</param>
     public SettingsDialog(SettingsService settings, LocalizationService localization, AiModelRegistry registry,
-        AiKeyInspectorService inspector, Func<AiModelOption, string> label, Action<double, double, int>? applyNorms = null)
+        AiKeyInspectorService inspector, Func<AiModelOption, string> label, Action<double, double, int>? applyNorms = null, Func<UIElement>? primaryModelCard = null)
     {
         _settings = settings;
         _registry = registry;
@@ -44,6 +44,8 @@ public sealed partial class SettingsDialog : ContentDialog
         _applyNorms = applyNorms;
         L = localization;
         InitializeComponent();
+        // Основная локальная модель программы (рейтинг, автовыбор) — карточка главного окна в разделе «BIM-Координатор».
+        if (primaryModelCard is not null) PrimaryModelHost.Child = primaryModelCard();
         BuildProviderRows();
         LoadValues();
     }
