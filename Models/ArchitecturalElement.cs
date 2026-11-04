@@ -165,6 +165,11 @@ public static class RoofShapes
     public const string Mansard = "mansard";
     public const string BarrelVault = "barrel_vault";
 
+    // Волна 4: сплошные формы покрытий уникальных сооружений.
+    public const string Dome = "dome";
+    public const string Cone = "cone";
+    public const string Folded = "folded";
+
     public static readonly IReadOnlyList<string> All = [Flat, Gable, Hip, Shed];
 
     /// <summary>Шесть полых форм генератора кровель (порядок кнопок инспектора).</summary>
@@ -192,6 +197,9 @@ public static class RoofShapes
             FlatParapet or "flat_with_parapet" or "parapet" or "эксплуатируемая" => FlatParapet,
             Mansard or "gambrel" or "мансардная" or "ломаная" => Mansard,
             BarrelVault or "vault" or "barrel" or "arch" or "сводчатая" or "арочная" => BarrelVault,
+            Dome or "cupola" or "spherical" or "купол" or "купольная" or "сферическая" => Dome,
+            Cone or "conical" or "spire" or "коническая" or "шатёр" => Cone,
+            Folded or "zigzag" or "sawtooth" or "складчатая" or "пилообразная" => Folded,
             _ => fallback
         };
     }

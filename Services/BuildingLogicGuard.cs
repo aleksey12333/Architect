@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using AIArchitectStudio.Models;
 
 namespace AIArchitectStudio.Services;
@@ -48,7 +48,7 @@ public static class BuildingLogicGuard
             if (!IsWallHost(w) || ReferenceEquals(w, opening) || w.BuildingGroupId != opening.BuildingGroupId) continue;
             if (opening.TopY <= w.BaseY + 0.05 || opening.BaseY >= w.TopY - 0.05) continue;
             var (lx, lz) = ArchitecturalElement.RotateY(opening.X - w.X, opening.Z - w.Z, -w.RotationY);
-            double along = Math.Max(0, Math.Abs(lx) - w.Width / 2), across = Math.Max(0, Math.Abs(lz) - w.Depth / 2);
+            double along = Math.Max(0, Math.Abs(lx) - w.Width / 2), across = Math.Max(0, Math.Abs(lz - ArcZ(w, lx)) - w.Depth / 2);
             double dist = Math.Sqrt(along * along + across * across);
             if (dist > AttachRadius) continue;
             double score = dist + Math.Abs(lz) * 1e-3 + (w.LevelIndex == opening.LevelIndex ? 0 : 1);
@@ -79,9 +79,11 @@ public static class BuildingLogicGuard
                              || IsWallHost(e) && Math.Abs(Math.Cos((e.RotationY - wall.RotationY) * Math.PI / 180)) < 0.9;
             if (!sibling && !structure) continue;
             var outline = ClashDetectionService.PlanOutline(e).Select(p => ArchitecturalElement.RotateY(p.X - wall.X, p.Z - wall.Z, -wall.RotationY)).ToList();
-            double minZ = outline.Min(p => p.Z), maxZ = outline.Max(p => p.Z);
-            if (maxZ < -band || minZ > band) continue;
             double minX = outline.Min(p => p.X), maxX = outline.Max(p => p.X);
+            // Дуговая стена (волна 4): полоса стены идёт по дуге — смещение дуги от хорды в середине элемента.
+            double zRef = ArcZ(wall, (minX + maxX) / 2);
+            double minZ = outline.Min(p => p.Z) - zRef, maxZ = outline.Max(p => p.Z) - zRef;
+            if (maxZ < -band || minZ > band) continue;
             if (sibling) zones.Add(new GuardZone(minX - OpeningGap, maxX + OpeningGap, $"проём «{e.DisplayTitle}»"));
             else
             {
@@ -141,10 +143,12 @@ public static class BuildingLogicGuard
                                            (blockers.Length > 0 ? $" (мешают: {blockers})" : string.Empty) + " — шаг отменён", host);
         }
 
-        var (wx, wz) = ArchitecturalElement.RotateY(center, 0, host.RotationY);
+        // Дуговая стена (волна 4): проём — в точке дуги, по касательной (радиальная врезка без «плоской наклейки»).
+        double tangent = CurvedDesign.IsArc(host) ? new ArcGeometry(host.Width, CurvedDesign.ArcBulge(host)).TangentDegrees(center) : 0;
+        var (wx, wz) = ArchitecturalElement.RotateY(center, ArcZ(host, center), host.RotationY);
         opening.SetSize(width, height, host.Depth + ParametricSolverService.OpeningClearance);
         opening.SetPosition(host.X + wx, y0 + height / 2, host.Z + wz);
-        opening.SetRotationY(host.RotationY);
+        opening.SetRotationY(host.RotationY + tangent);
         if (opening.BuildingGroupId != host.BuildingGroupId) opening.BuildingGroupId = host.BuildingGroupId;
         if (opening.LevelIndex != host.LevelIndex) opening.LevelIndex = host.LevelIndex;
         if (opening.HostElementId != host.Id) opening.HostElementId = host.Id;
@@ -158,6 +162,10 @@ public static class BuildingLogicGuard
         }
         return new OpeningGuardResult(true, host, shift, reattached, notes.Count == 0 ? string.Empty : $"{kind} «{opening.DisplayTitle}»: {string.Join(", ", notes)}");
     }
+
+    /// <summary>Смещение оси дуговой стены от хорды в хордовой координате x (0 — прямая стена).</summary>
+    public static double ArcZ(ArchitecturalElement wall, double x) =>
+        CurvedDesign.IsArc(wall) ? new ArcGeometry(wall.Width, CurvedDesign.ArcBulge(wall)).ZAt(Math.Clamp(x, -wall.Width / 2, wall.Width / 2)) : 0;
 
     private static string Mm(double m) => Math.Round(m * 1000).ToString("N0", Ru);
 }

@@ -151,13 +151,15 @@ public static class RengaPropertyService
             case BimCategory.Wall:
             case BimCategory.CurtainWall:
             {
-                gross = e.Width * e.Height * e.Depth * repeat;
+                // Дуговая стена (волна 4): длина оси — длина дуги, а не хорда.
+                double axisLength = e.Width * CurvedDesign.LengthFactor(e);
+                gross = axisLength * e.Height * e.Depth * repeat;
                 var cuts = hosted.Where(o => ElementTypes.IsHostedType(o.Category)).ToList();
                 opening = cuts.Sum(o => ClippedOpening(e, o).Area);
                 net = Math.Max(0, gross - opening * e.Depth);
                 double reveals = cuts.Sum(o => ClippedOpening(e, o).Perimeter) * e.Depth;
-                formwork = Math.Max(0, 2 * (e.Width * e.Height * repeat - opening)) + reveals;
-                baseArea = e.Width * e.Depth;
+                formwork = Math.Max(0, 2 * (axisLength * e.Height * repeat - opening)) + reveals;
+                baseArea = axisLength * e.Depth;
                 break;
             }
             case BimCategory.Column:

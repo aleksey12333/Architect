@@ -1,4 +1,4 @@
-using System.Collections.Specialized;
+﻿using System.Collections.Specialized;
 using System.ComponentModel;
 using AIArchitectStudio.Models;
 using AIArchitectStudio.Services;
@@ -54,6 +54,7 @@ public sealed partial class MainWindow : Window
         InitializeBlock34();
         InitializeWave2();
         InitializeWave3();
+        InitializeWave4();
 #if DEBUG
         ApplyDebugStartupOptions();
 #endif

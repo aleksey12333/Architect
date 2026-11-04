@@ -125,6 +125,8 @@ public static partial class ElementGeometryBuilder
         (float Scale, float TwistDegrees)? floorTransform = null)
     {
         var poly = PolygonOf(e);
+        // Волна 4: дуги, косые торцы, арочный верх витража, купол/конус/складки — элементы без этих форм идут прежним путём.
+        if (TryBuildCurved(set, e, hosted, w, h, d, mat, poly, floorTransform)) return;
         switch (e.Type)
         {
             case ElementTypes.Wall when e.Layers.Count > 0:
@@ -249,6 +251,9 @@ public static partial class ElementGeometryBuilder
     /// <summary>Контур элемента в плане в мировых координатах (X, Z): Polygon2D или прямоугольник W × D с учётом поворота.</summary>
     public static List<(double X, double Z)> WorldOutline(ArchitecturalElement e)
     {
+        // Волна 4: дуговая стена/витраж — полоса по дуге, стена с косыми торцами — четырёхугольник реза.
+        if (e.UserParameters is not null && e.Polygon2D.Count < 3 && e.Category is BimCategory.Wall or BimCategory.CurtainWall && ShapedOutline(e) is { } shaped)
+            return shaped;
         IEnumerable<(double X, double Z)> local = e.Polygon2D.Count >= 3
             ? e.Polygon2D.Select(p => (p.X, p.Z))
             : [(-e.Width / 2, -e.Depth / 2), (e.Width / 2, -e.Depth / 2), (e.Width / 2, e.Depth / 2), (-e.Width / 2, e.Depth / 2)];

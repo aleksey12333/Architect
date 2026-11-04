@@ -518,6 +518,7 @@ public sealed partial class Viewport3DControl : UserControl
         _modelsById.Clear();
         _hitMap.Clear();
         _partKinds.Clear();
+        _partTints.Clear();
         _geometryById.Clear();
         _stress.Clear();
 
@@ -549,6 +550,7 @@ public sealed partial class Viewport3DControl : UserControl
             if (m is MeshGeometryModel3D mesh)
             {
                 _partKinds.Remove(mesh);
+                _partTints.Remove(mesh);
                 _stress.Remove(mesh);
             }
         }
@@ -585,19 +587,21 @@ public sealed partial class Viewport3DControl : UserControl
         var edgeGeometry = clipped is null ? geometry.Edges : clipped.Edges;
         var transform = clipped is null ? geometry.Transform.ToDx() : Matrix.Identity;
         var models = new List<Element3D>();
+        string? tint = CurvedDesign.FacadeColor(el);
         foreach (var part in parts)
         {
             bool transparent = ArchitecturalMaterials.IsTransparent(part.Material);
             var model = new MeshGeometryModel3D
             {
                 Geometry = part.Mesh.ToMeshGeometry(),
-                Material = MaterialFor(part.Material),
+                Material = MaterialFor(part.Material, tint),
                 HxTransform3D = transform,
                 CullMode = CullMode.None,
                 IsTransparent = transparent,
                 IsThrowingShadow = false
             };
             _partKinds[model] = part.Material;
+            if (tint is not null && ArchitecturalMaterials.IsTintable(part.Material)) _partTints[model] = tint;
             models.Add(model);
         }
         // Заливка среза по материалам: несущий бетон — тёмным тоном, каждый слой пирога — своим.
@@ -642,6 +646,12 @@ public sealed partial class Viewport3DControl : UserControl
     /// <summary>Материал части: архитектурный или единый гипс макета (White Clay).</summary>
     private PhongMaterial MaterialFor(MaterialKind kind) =>
         _vm?.IsClayMode == true ? ArchitecturalMaterials.GetClay(kind) : ArchitecturalMaterials.Get(kind);
+
+    /// <summary>Части, окрашенные в цвет фасада с фотографии (волна 4).</summary>
+    private readonly Dictionary<MeshGeometryModel3D, string> _partTints = [];
+
+    private PhongMaterial MaterialFor(MaterialKind kind, string? tint) =>
+        tint is not null && _vm?.IsClayMode != true && ArchitecturalMaterials.IsTintable(kind) ? ArchitecturalMaterials.GetTinted(kind, tint) : MaterialFor(kind);
 
     private PhongMaterial SelectedMaterialFor(MaterialKind kind, Color4 accent) =>
         _vm?.IsClayMode == true ? ArchitecturalMaterials.GetClaySelected(kind, accent) : ArchitecturalMaterials.GetSelected(kind, accent);
@@ -834,7 +844,7 @@ public sealed partial class Viewport3DControl : UserControl
 
         // В режиме карты напряжений модели сохраняют свои материалы шкалы K_исп (выделение — рамкой и Gizmo).
         foreach (var (model, kind) in _partKinds)
-            if (!_stress.ContainsKey(model)) model.Material = MaterialFor(kind);
+            if (!_stress.ContainsKey(model)) model.Material = MaterialFor(kind, _partTints.GetValueOrDefault(model));
 
         _overlayGroup.Children.Clear();
         _gizmoAxes.Clear();

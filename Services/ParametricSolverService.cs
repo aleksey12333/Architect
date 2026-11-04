@@ -122,6 +122,7 @@ public sealed class ParametricSolverService
 
         foreach (var gid in affectedGroups) ApplyGravity(run, gid);
         JoinWallCorners(run);
+        MiterAngledCorners(run);
         AttachOpenings(run, affectedGroups);
         AttachSlabOpenings(run, affectedGroups);
 
@@ -245,7 +246,25 @@ public sealed class ParametricSolverService
 
         ApplySpecGeometry(run, e, spec, meta, isNew: true);
         ApplyLayers(run, e, spec);
+        if (spec.HasShape) ApplyShape(run, e, spec);
         return e;
+    }
+
+    /// <summary>
+    /// Волна 4: криволинейная форма из ответа модели — стрела дуги (стена, витраж, арка), скругление углов контура (запекается в
+    /// Polygon2D), арочный верх витража, рез торцов, цвет фасада. Без этих полей элемент не меняется.
+    /// </summary>
+    private static void ApplyShape(Run run, ArchitecturalElement e, AiElementSpec spec)
+    {
+        if (spec.ArcBulge is { } bulge && e.Category is BimCategory.Wall or BimCategory.CurtainWall or BimCategory.Beam) CurvedDesign.SetArc(e, bulge);
+        if (spec.ArchRise is { } rise && e.Category == BimCategory.CurtainWall) CurvedDesign.SetArchRise(e, rise);
+        if ((spec.MiterStart ?? spec.MiterEnd) is not null && e.Category == BimCategory.Wall) CurvedDesign.SetMiter(e, spec.MiterStart ?? 0, spec.MiterEnd ?? 0);
+        if (spec.CornerRadius is { } r && r > 0 && (ElementTypes.IsSlabHostType(e.Category) || e.Category is BimCategory.Slab or BimCategory.Roof or BimCategory.Foundation or BimCategory.Terrace or BimCategory.CantileverSlab))
+        {
+            CurvedDesign.ApplyCornerRadius(e, Math.Min(r, Math.Min(e.Width, e.Depth) * 0.49));
+            run.Report.Actions.Add($"Скругление углов «{e.DisplayTitle}»: R = {r:0.##} м");
+        }
+        if (!string.IsNullOrWhiteSpace(spec.ColorHex)) CurvedDesign.SetFacadeColor(e, spec.ColorHex);
     }
 
     /// <summary>Пирог из ответа ИИ (Конструктор КБ): готовый набор по имени или явные слои; толщина элемента = сумма слоёв.</summary>
@@ -287,6 +306,7 @@ public sealed class ParametricSolverService
         if (spec.Pinned) meta.Pinned = true;
         ApplySpecGeometry(run, e, spec, meta, isNew: false);
         ApplyLayers(run, e, spec);
+        if (spec.HasShape) ApplyShape(run, e, spec);
         run.Report.Actions.Add($"Изменён элемент: {e.DisplayTitle}");
 
         // Окна и двери следуют за стеной-родителем (как при ручном перемещении в 3D).
@@ -813,6 +833,84 @@ public sealed class ParametricSolverService
             }
         }
         return changed;
+    }
+
+    /// <summary>
+    /// Волна 4: узлы стен под произвольным углом (не перпендикулярных ±15° и не параллельных, ≥ 3°) не выпрямляются в сетку, а
+    /// стыкуются по биссектрисе — оси продлеваются до пересечения, торцы режутся по линии биссектрисы угла (без клиновидных щелей).
+    /// </summary>
+    private static void MiterAngledCorners(Run run)
+    {
+        var walls = run.Elements.Where(e => e.Type == ElementTypes.Wall && e.Polygon2D.Count < 3 && !CurvedDesign.IsArc(e)).ToList();
+        int joints = 0;
+        foreach (var bucket in walls.GroupBy(w => (w.BuildingGroupId, w.LevelIndex)))
+        {
+            var list = bucket.ToList();
+            for (int i = 0; i < list.Count; i++)
+                for (int j = i + 1; j < list.Count; j++)
+                {
+                    if (!run.M(list[i]).Affected && !run.M(list[j]).Affected) continue;
+                    if (!MiterJoin(list[i], list[j])) continue;
+                    run.Correct(list[i]);
+                    run.Correct(list[j]);
+                    joints++;
+                }
+        }
+        if (joints > 0) run.Report.Actions.Add($"Биссектрисная стыковка: узлов стен под произвольным углом {joints}");
+    }
+
+    /// <summary>
+    /// Биссектрисный узел двух прямых стен под углом 3…75° между осями: ближние торцы переносятся в точку пересечения осей (если зазор
+    /// не больше 0,5 м + толщина / sin угла), углы реза торцов — по биссектрисе m = (da + db)/|da + db|, где da, db — направления от узла
+    /// к дальним торцам: x − x_торца = z·(m·x̂)/(m·ẑ). false — узла нет или он уже сомкнут.
+    /// </summary>
+    public static bool MiterJoin(ArchitecturalElement a, ArchitecturalElement b)
+    {
+        var (ax, az) = Axis(a);
+        var (bx, bz) = Axis(b);
+        double cos = Math.Clamp(Math.Abs(ax * bx + az * bz), 0, 1);
+        double angle = Math.Acos(cos) * 180 / Math.PI;
+        if (angle < 3 || angle > 75) return false;
+        double denom = ax * bz - az * bx;
+        if (Math.Abs(denom) < 1e-9) return false;
+        var (a0, a1) = Ends(a);
+        var (b0, b1) = Ends(b);
+        double t = ((b0.X - a0.X) * bz - (b0.Z - a0.Z) * bx) / denom;
+        var p = (X: a0.X + ax * t, Z: a0.Z + az * t);
+        double sin = Math.Sin(angle * Math.PI / 180);
+        double tolerance = CornerTolerance + Math.Max(a.Depth, b.Depth) / Math.Max(0.2, sin);
+        int aNear = Dist(a0, p) <= Dist(a1, p) ? 0 : 1, bNear = Dist(b0, p) <= Dist(b1, p) ? 0 : 1;
+        var aEnd = aNear == 0 ? a0 : a1;
+        var bEnd = bNear == 0 ? b0 : b1;
+        if (Dist(aEnd, p) > tolerance || Dist(bEnd, p) > tolerance) return false;
+        var aFar = aNear == 0 ? a1 : a0;
+        var bFar = bNear == 0 ? b1 : b0;
+        // Узел должен быть «торец к торцу»: точка пересечения не лежит глубоко внутри стены.
+        if (Dist(aFar, p) < Dist(aEnd, p) || Dist(bFar, p) < Dist(bEnd, p)) return false;
+        var (dax, daz) = Unit(aFar.X - p.X, aFar.Z - p.Z);
+        var (dbx, dbz) = Unit(bFar.X - p.X, bFar.Z - p.Z);
+        var (mx, mz) = Unit(dax + dbx, daz + dbz);
+        bool moved = Dist(aEnd, p) > Eps || Dist(bEnd, p) > Eps;
+        if (Dist(aEnd, p) > Eps) SetEnds(a, aNear == 0 ? p : a0, aNear == 0 ? a1 : p);
+        if (Dist(bEnd, p) > Eps) SetEnds(b, bNear == 0 ? p : b0, bNear == 0 ? b1 : p);
+        bool cut = SetMiterEnd(a, aNear, mx, mz) | SetMiterEnd(b, bNear, mx, mz);
+        return moved || cut;
+    }
+
+    /// <summary>Угол реза торца стены (0 — начало −X, 1 — конец +X) по направлению линии реза (mx, mz) в плане.</summary>
+    private static bool SetMiterEnd(ArchitecturalElement w, int end, double mx, double mz)
+    {
+        var (xx, xz) = ArchitecturalElement.RotateY(1, 0, w.RotationY);
+        var (zx, zz) = ArchitecturalElement.RotateY(0, 1, w.RotationY);
+        double mLocalX = mx * xx + mz * xz, mLocalZ = mx * zx + mz * zz;
+        if (Math.Abs(mLocalZ) < 1e-6) return false;
+        double deg = Math.Atan(mLocalX / mLocalZ) * 180 / Math.PI;
+        var (start, finish) = CurvedDesign.Miter(w);
+        double before = end == 0 ? start : finish;
+        if (Math.Abs(before - deg) < 1e-6) return false;
+        if (end == 0) CurvedDesign.SetMiter(w, deg, finish);
+        else CurvedDesign.SetMiter(w, start, deg);
+        return true;
     }
 
     private static (double X, double Z) Axis(ArchitecturalElement w) => ArchitecturalElement.RotateY(1, 0, w.RotationY);

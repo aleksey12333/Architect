@@ -72,6 +72,29 @@ public sealed class MeshAccumulator
         _indices.AddRange([i, i + 1, i + 2, i, i + 2, i + 3]);
     }
 
+    /// <summary>
+    /// Четырёхугольник с гладкими нормалями вершин (криволинейные поверхности: дуговые стены, витражи, своды). Обход выбирается так,
+    /// чтобы нормаль грани совпадала со средней нормалью вершин.
+    /// </summary>
+    public void AddQuadSmooth(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 na, Vector3 nb, Vector3 nc, Vector3 nd)
+    {
+        var ta = T(a); var tb = T(b); var tc = T(c); var td = T(d);
+        var face = BimMath.Cross(tb - ta, tc - ta);
+        if (BimMath.LengthSquared(face) < 1e-14f) face = BimMath.Cross(tc - ta, td - ta);
+        if (BimMath.LengthSquared(face) < 1e-14f) return;
+        var tna = TN(na); var tnb = TN(nb); var tnc = TN(nc); var tnd = TN(nd);
+        var avg = tna + tnb + tnc + tnd;
+        if (BimMath.Dot(face, avg) < 0)
+        {
+            (tb, td) = (td, tb);
+            (tnb, tnd) = (tnd, tnb);
+        }
+        int i = _positions.Count;
+        _positions.Add(ta); _positions.Add(tb); _positions.Add(tc); _positions.Add(td);
+        _normals.Add(tna); _normals.Add(tnb); _normals.Add(tnc); _normals.Add(tnd);
+        _indices.AddRange([i, i + 1, i + 2, i, i + 2, i + 3]);
+    }
+
     public void AddEdge(Vector3 a, Vector3 b)
     {
         if (!CollectEdges) return;

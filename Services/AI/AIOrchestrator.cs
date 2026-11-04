@@ -1,4 +1,5 @@
 ﻿using AIArchitectStudio.Models;
+using AIArchitectStudio.Services.Photo;
 
 namespace AIArchitectStudio.Services.AI;
 
@@ -26,9 +27,31 @@ public sealed class AiRequestContext
     /// <summary>Описание выбранных листов PDF для пользовательской части промпта.</summary>
     public string? SheetsDescription { get; init; }
 
+    /// <summary>
+    /// Оптический паспорт снимка (волна 4): ответ любой модели сверяется с ним и доводится (<see cref="PhotoFidelityEnforcer"/>),
+    /// затем каркас проходит двухпроходную проверку. null — обычный запрос.
+    /// </summary>
+    public PhotoArchitectureDescriptor? Photo { get; init; }
+
+    /// <summary>Ручная доводка подъёма по фото (профиль, этажность, кривизна, остекление, покрытие).</summary>
+    public PhotoLiftOptions? PhotoOptions { get; init; }
+
+    /// <summary>Нагрузки для проверки каркаса поднятого по фото здания (null — по умолчанию).</summary>
+    public StructuralLoadSettings? PhotoLoads { get; init; }
+
+    /// <summary>Тот же контекст с оптическим паспортом снимка.</summary>
+    public AiRequestContext WithPhoto(PhotoArchitectureDescriptor photo, PhotoLiftOptions? options, StructuralLoadSettings? loads) => new()
+    {
+        Task = Task, Model = Model, Mode = Mode, SelectedElementId = SelectedElementId, Scene = Scene, Vision = Vision, Images = Images, Image = Image,
+        ImageName = ImageName, Kind = Kind, SheetsDescription = SheetsDescription, Photo = photo, PhotoOptions = options, PhotoLoads = loads
+    };
+
     /// <summary>Тот же контекст для другой модели (роли Совета КБ выполняются разными моделями).</summary>
     public AiRequestContext WithModel(AiModelOption model) => new()
     {
+        Photo = Photo,
+        PhotoOptions = PhotoOptions,
+        PhotoLoads = PhotoLoads,
         Task = Task,
         Model = model,
         Mode = Mode,
@@ -205,6 +228,9 @@ public sealed class AIOrchestrator(
         });
 
         var report = result.Report;
+        // Волна 4: подъём по фото — форма, ярусы, кривизна и цвета снимка гарантируются, каркас доводится до K_исп ≤ 1,0.
+        if (ctx.Photo is { } photo && mode != SolverMode.Modify)
+            PhotoToBimService.EnforceSolverResult(result, photo, ctx.PhotoOptions, ctx.PhotoLoads ?? new StructuralLoadSettings());
         if (document.WasRepaired)
             report.Warnings.Insert(0, "Ответ BIM-Координатора был обрезан по лимиту длины — построены все целые элементы");
         if (result.Elements.Count == 0)

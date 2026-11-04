@@ -387,6 +387,10 @@ public static partial class CadSelfTestService
         // ── Волна 3: армирование по параметрам и каркасы продавливания, основная локальная модель, цепочка рассуждений, веб-импорт расценок, Инженерный агент.
         report.AppendLine().AppendLine("═══ Волна 3: армирование Ø/шаг/слой и каркасы продавливания, локальное ядро, цепочка рассуждений, веб-импорт прайса, Инженерный агент ═══");
         failures += await CheckWave3Async(directory, report);
+
+        // ── Волна 4: криволинейная геометрия, подъём по фото через любые модели, пять сооружений DemoKit/InternetPhotos.
+        report.AppendLine().AppendLine("═══ Волна 4: дуги, рез торцов, скругления, купола и своды, подъём по фото и сверка со снимком, пять сооружений из интернета ═══");
+        failures += await CheckWave4Async(directory, report);
         ReinforcementCalculator.StrictMinimum = strictMinimum;
 
         report.Insert(0, failures == 0 ? "ИТОГ: УСПЕХ — расхождений нет\n\n" : $"ИТОГ: ОШИБОК {failures}\n\n");

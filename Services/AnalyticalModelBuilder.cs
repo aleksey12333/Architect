@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using AIArchitectStudio.Models;
@@ -196,9 +196,11 @@ public sealed class AnalyticalModelBuilder
             case ElementTypes.Wall when mat.Kind == AnalyticalMaterialKind.Glass:
             case ElementTypes.CurtainWall:
                 m.Role = AnalyticalRole.LoadOnly;
-                m.Shape = e.Polygon2D.Count >= 3 ? AnalyticalShape.Polyline : AnalyticalShape.Segment;
+                bool arcFacade = e.Polygon2D.Count < 3 && CurvedDesign.IsArc(e);
+                m.Shape = e.Polygon2D.Count >= 3 || arcFacade ? AnalyticalShape.Polyline : AnalyticalShape.Segment;
                 m.AxisStart = axisA; m.AxisEnd = axisB;
-                m.Axis = e.Polygon2D.Count >= 3 ? m.Outline : [axisA, axisB];
+                // Волна 4: дуговой витраж — ось цепочкой хорд по дуге (вес — по длине дуги).
+                m.Axis = e.Polygon2D.Count >= 3 ? m.Outline : arcFacade ? ElementGeometryBuilder.ArcAxis(e) : [axisA, axisB];
                 m.AxisClosed = e.Polygon2D.Count >= 3;
                 panel!.IsVertical = true;
                 panel.Thickness = e.Depth;
@@ -213,12 +215,21 @@ public sealed class AnalyticalModelBuilder
                 m.Bearing = e.UserParameters is null || StructuralRole.IsLoadBearing(e);
                 m.Shape = AnalyticalShape.Segment;
                 m.AxisStart = axisA; m.AxisEnd = axisB;
+                // Волна 4: дуговая стена — цепочка пластин по хордам дуги (опирание плит и передача вниз — вдоль дуги).
+                double lengthFactor = 1;
+                if (CurvedDesign.IsArc(e))
+                {
+                    m.Shape = AnalyticalShape.Polyline;
+                    m.Axis = ElementGeometryBuilder.ArcAxis(e);
+                    m.AxisClosed = false;
+                    lengthFactor = CurvedDesign.LengthFactor(e);
+                }
                 m.HalfT = d / 2;
                 m.ThickStruct = MaterialLayers.StructuralThickness(e);
                 panel!.IsVertical = true;
                 panel.Thickness = m.ThickStruct > 0 ? m.ThickStruct : e.Depth;
                 double openArea = (wallOpenings ?? []).Sum(o => Math.Min(o.Width, w) * Math.Min(o.Height, h));
-                double area = Math.Max(0, w * h - openArea);
+                double area = Math.Max(0, w * lengthFactor * h - openArea);
                 m.SelfD = e.Layers.Count > 0
                     ? area * e.Layers.Sum(l => l.WeightKPa * (l.Role == MaterialLayerRole.Structural ? StructuralNorms.GammaDead : StructuralNorms.GammaFinish))
                     : area * d * mat.Density * G * StructuralNorms.GammaDead;
@@ -693,6 +704,7 @@ public sealed class AnalyticalModelBuilder
         AnalyticalRole.Vertical => m.Shape switch
         {
             AnalyticalShape.Segment => Geometry2D.Resample([m.AxisStart, m.AxisEnd], 0.5, false).Select(p => (p.X, p.Z, p.Length)).ToList(),
+            AnalyticalShape.Polyline => Geometry2D.Resample(m.Axis, 0.5, m.AxisClosed).Select(p => (p.X, p.Z, p.Length)).ToList(),
             AnalyticalShape.Box => Geometry2D.Resample(m.Outline, 0.75, true).Select(p => (p.X, p.Z, p.Length)).ToList(),
             AnalyticalShape.Ring => m.Outline.Select(p => (p.X, p.Z, 1.0)).ToList(),
             _ => [(m.Center.X, m.Center.Z, 1.0)]

@@ -449,6 +449,9 @@ public sealed partial class MainViewModel : ObservableObject
         if (text.Length == 0) return;
         ChatInput = string.Empty;
 
+        // Волна 4: ссылка на фото из интернета в панели команд → студия «Реконструкция по фото и плану».
+        if (await TryOpenPhotoLinkAsync(text)) return;
+
         // Режим «Инженерный агент»: задача уходит агенту (инструменты программы, без снимков вида).
         if (IsAgentMode)
         {

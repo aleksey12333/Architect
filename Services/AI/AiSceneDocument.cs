@@ -58,6 +58,24 @@ public sealed class AiElementSpec
     /// </summary>
     public bool Pinned { get; set; }
 
+    /// <summary>Стрела дуги стены/витража/арки, м (волна 4).</summary>
+    public double? ArcBulge { get; set; }
+
+    /// <summary>Радиус скругления углов контура плиты/кровли/фундамента, м.</summary>
+    public double? CornerRadius { get; set; }
+
+    /// <summary>Стрела арочного верха витража, м.</summary>
+    public double? ArchRise { get; set; }
+
+    /// <summary>Углы реза торцов стены, градусы.</summary>
+    public double? MiterStart { get; set; }
+    public double? MiterEnd { get; set; }
+
+    /// <summary>Цвет фасада «#RRGGBB».</summary>
+    public string? ColorHex { get; set; }
+
+    public bool HasShape => ArcBulge is not null || CornerRadius is not null || ArchRise is not null || MiterStart is not null || MiterEnd is not null || ColorHex is not null;
+
     /// <summary>ИИ явно задал отметку (третья координата position, y или baseY).</summary>
     public bool HasExplicitY => BaseY.HasValue || Position is { Length: >= 3 };
 }
@@ -319,7 +337,14 @@ public static class AiJsonExtractor
             Profile = Str(e, "profile", "profileType", "sectionType", "crossSection", "section"),
             ProfileWallThickness = Num(e, "flangeThickness", "tf", "pipeThickness", "tubeThickness", "profileThickness"),
             ProfileWebThickness = Num(e, "webThickness", "tw"),
-            RoofShape = Str(e, "roofType", "roofShape", "roofForm", "shape")
+            RoofShape = Str(e, "roofType", "roofShape", "roofForm", "shape"),
+            // Волна 4: криволинейная форма и цвет фасада с фотографии.
+            ArcBulge = Num(e, "arcBulge", "bulge", "sagitta", "arcRise"),
+            CornerRadius = Num(e, "cornerRadius", "filletRadius", "roundCorners"),
+            ArchRise = Num(e, "archRise", "archTop", "topArch"),
+            MiterStart = Num(e, "miterStart", "joinStartDeg"),
+            MiterEnd = Num(e, "miterEnd", "joinEndDeg"),
+            ColorHex = Str(e, "colorHex", "facadeColor", "facadeHex")
         };
 
         // Пирог: имя готового набора или массив слоёв {name, thickness (мм), role, density}.

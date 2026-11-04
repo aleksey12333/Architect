@@ -1,0 +1,77 @@
+namespace AIArchitectStudio.Services;
+
+/// <summary>
+/// Строки волны 4: «Реконструкция по фото и плану» — загрузка снимка по ссылке, перетаскиванием и из буфера обмена, выбор модели
+/// подъёма (Визуальное ядро, Локальное ядро, Совет КБ, внешний проектировщик), профили и мгновенная доводка, сводка проверки
+/// каркаса, карточка «Фото-референс», витрина пяти сооружений (отдельный словарь, общий поиск — <see cref="LocalizationService.Get(string)"/>).
+/// </summary>
+public sealed partial class LocalizationService
+{
+    private static readonly Dictionary<string, (string Ru, string En)> Wave4Strings = new()
+    {
+        ["W4StudioTitle"] = ("Реконструкция по фото и плану", "Reconstruction from photo and plan"),
+        ["W4StudioSubtitle"] = ("Снимок из интернета, файл или буфер обмена → 3D BIM-модель в цветах оригинала с проверенным несущим каркасом",
+            "A web image, file or clipboard → a 3D BIM model in the original colours with a verified load-bearing frame"),
+        ["W4TopButton"] = ("По фото / плану", "From photo / plan"),
+        ["W4TopButtonTip"] = ("Реконструкция по фото и плану (Ctrl+Shift+V — вставить картинку или ссылку)", "Reconstruction from photo and plan (Ctrl+Shift+V pastes an image or link)"),
+        ["W4Route"] = ("Чем выполнять подъём", "Lift with"),
+        ["W4RouteAuto"] = ("Авто (Визуальное ядро + Локальная модель)", "Auto (Visual core + Local model)"),
+        ["W4RoutePrimary"] = ("Основная локальная модель", "Primary local model"),
+        ["W4RouteCouncil"] = ("Совет КБ (Консилиум)", "Design Bureau council"),
+        ["W4RouteWeb"] = ("Веб-проектировщик", "Web designer"),
+        ["W4UrlPlaceholder"] = ("Вставить ссылку на фото из интернета (URL)", "Paste a link to a photo from the internet (URL)"),
+        ["W4Load"] = ("Загрузить", "Load"),
+        ["W4PickFile"] = ("Выбрать файл", "Choose file"),
+        ["W4Paste"] = ("Вставить из буфера", "Paste from clipboard"),
+        ["W4DropHint"] = ("Перетащите картинку из браузера или проводника на окно, вставьте ссылку или нажмите Ctrl+Shift+V",
+            "Drag an image from a browser or Explorer onto the window, paste a link or press Ctrl+Shift+V"),
+        ["W4Profile"] = ("Профиль здания", "Building profile"),
+        ["W4ProfAuto"] = ("Авто по фото", "Auto from photo"),
+        ["W4ProfCurved"] = ("Радиусный / Изгиб", "Curved / radial"),
+        ["W4ProfRounded"] = ("Скруглённый корпус", "Rounded block"),
+        ["W4ProfCascade"] = ("Каскадный с уступами", "Cascading with setbacks"),
+        ["W4ProfTriangle"] = ("Треугольный / Скошенный", "Triangular / skewed"),
+        ["W4ProfRotunda"] = ("Ротонда / Купол", "Rotunda / dome"),
+        ["W4ProfArch"] = ("Мост / Арка / Зал", "Bridge / arch / hall"),
+        ["W4ProfPitched"] = ("Скатный дом", "Pitched house"),
+        ["W4ProfBox"] = ("Прямоугольный корпус", "Rectangular block"),
+        ["W4Floors"] = ("Этажность", "Storeys"),
+        ["W4Curvature"] = ("Кривизна", "Curvature"),
+        ["W4Glazing"] = ("Доля остекления", "Glazing share"),
+        ["W4Roof"] = ("Покрытие", "Roof"),
+        ["W4RoofAuto"] = ("По фото", "From photo"),
+        ["W4RoofFlat"] = ("Плоское", "Flat"),
+        ["W4RoofParapet"] = ("С парапетом", "With parapet"),
+        ["W4RoofDome"] = ("Купол", "Dome"),
+        ["W4RoofVault"] = ("Свод", "Vault"),
+        ["W4RoofGable"] = ("Скатное", "Pitched"),
+        ["W4Summary"] = ("Этажей: {0} · {1} · K_исп {2} · Смета каркаса {3} ₽", "Storeys: {0} · {1} · K {2} · Frame cost {3} RUB"),
+        ["W4Checking"] = ("Проверка каркаса…", "Checking the frame…"),
+        ["W4Checked"] = ("Каркас проверен: ΣR_y = ΣF {0}, висящих узлов {1}, дверей в колоннах {2}, проверок без замечаний {3}",
+            "Frame verified: ΣR_y = ΣF {0}, hanging nodes {1}, doors in columns {2}, clean checks {3}"),
+        ["W4Lift"] = ("Поднять в проект", "Lift into the project"),
+        ["W4Close"] = ("Закрыть", "Close"),
+        ["W4Evidence"] = ("Признаки Визуального ядра", "Visual core evidence"),
+        ["W4Palette"] = ("Палитра фасада", "Facade palette"),
+        ["W4Original"] = ("Исходный снимок", "Source image"),
+        ["W4Preview"] = ("3D BIM-модель (вращение мышью)", "3D BIM model (drag to rotate)"),
+        ["W4Loading"] = ("Загрузка снимка…", "Loading the image…"),
+        ["W4Analyzing"] = ("Визуальное ядро анализирует снимок…", "The visual core is analysing the image…"),
+        ["W4LoadError"] = ("Не удалось загрузить снимок: {0}", "Could not load the image: {0}"),
+        ["W4PasteNoImage"] = ("В буфере обмена нет изображения, ссылки или файла картинки", "The clipboard has no image, link or image file"),
+        ["W4Engine"] = ("Визуальное ядро", "Visual core"),
+        ["W4Inserted"] = ("Поднято по снимку «{0}»: {1}", "Lifted from the image “{0}”: {1}"),
+        ["W4SentToModel"] = ("Снимок «{0}» отправлен модели проектирования {1}: {2}", "Image “{0}” sent to the design model {1}: {2}"),
+        ["W4NoLocal"] = ("Основная локальная модель не найдена — подъём выполнен Визуальным ядром", "No primary local model — the visual core lifted the building"),
+        ["W4ExternalDesigner"] = ("Внешний проектировщик", "External designer"),
+        ["W4DesignModel"] = ("Модель проектирования", "Design model"),
+        ["W4RefTitle"] = ("Фото-референс", "Photo reference"),
+        ["W4RefHide"] = ("Скрыть фото-референс", "Hide the photo reference"),
+        ["W4Showcase"] = ("Пять сооружений: снимок → 3D BIM-модель", "Five structures: image → 3D BIM model"),
+        ["W4ShowcaseHint"] = ("Подъём Визуальным ядром, каркас доведён двухпроходной проверкой; K_исп — наибольший коэффициент использования",
+            "Lifted by the visual core, frame refined by the two-pass check; K is the maximum utilisation"),
+        ["W4Morphology"] = ("Морфология", "Morphology"),
+        ["W4Fidelity"] = ("Сверка со снимком: форма {0} → {1}", "Image fidelity: shape {0} → {1}"),
+        ["W4DropAccept"] = ("Отпустите — снимок откроется в студии «Реконструкция по фото и плану»", "Release to open the image in the photo reconstruction studio")
+    };
+}

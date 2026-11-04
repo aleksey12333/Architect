@@ -246,7 +246,7 @@ public sealed class BimAnalyticsService
     /// <summary>Площадь стены за вычетом привязанных проёмов (с учётом повторов этажей).</summary>
     private static double WallArea(ArchitecturalElement wall, IReadOnlyList<ArchitecturalElement> items)
     {
-        double gross = wall.Width * wall.Height * Math.Max(1, wall.RepeatLevels);
+        double gross = wall.Width * CurvedDesign.LengthFactor(wall) * wall.Height * Math.Max(1, wall.RepeatLevels);
         double openings = items
             .Where(o => o.HostElementId == wall.Id && ElementTypes.IsHostedType(o.Category))
             .Sum(o => Math.Min(o.Width, wall.Width) * Math.Min(o.Height, wall.Height));

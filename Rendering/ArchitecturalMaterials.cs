@@ -71,6 +71,26 @@ public static class ArchitecturalMaterials
         return m;
     }
 
+    // ───────────── Цвета фасада с фотографии (волна 4) ─────────────
+
+    private static readonly Dictionary<(MaterialKind, string), PhongMaterial> TintCache = [];
+
+    /// <summary>Часть элемента окрашивается в цвет фасада: тела и стекло; обвязка, пустоты, срезы и служебные слои — нет.</summary>
+    public static bool IsTintable(MaterialKind kind) => kind is not (MaterialKind.Frame or MaterialKind.Void or MaterialKind.DoorWood or MaterialKind.Water
+        or MaterialKind.Insulation or MaterialKind.Screed or MaterialKind.Waterproofing or MaterialKind.SectionCut or MaterialKind.InsulationCut
+        or MaterialKind.ScreedCut or MaterialKind.WaterproofingCut or MaterialKind.FinishCut);
+
+    /// <summary>Материал в цвете фасада «#RRGGBB»: стекло сохраняет прозрачность (0.55), тела — непрозрачные.</summary>
+    public static PhongMaterial GetTinted(MaterialKind kind, string hex)
+    {
+        if (TintCache.TryGetValue((kind, hex), out var m)) return m;
+        if (!Models.CurvedDesign.TryParseHex(hex, out var rgb)) return Get(kind);
+        var color = new Color4(rgb.R / 255f, rgb.G / 255f, rgb.B / 255f, IsTransparent(kind) ? 0.55f : 1f);
+        m = Create(color, kind);
+        TintCache[(kind, hex)] = m;
+        return m;
+    }
+
     // ───────────── Архитектурный макет (White Clay) ─────────────
 
     /// <summary>Благородный матовый гипс макета #F4F4F6.</summary>
