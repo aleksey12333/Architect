@@ -212,6 +212,7 @@ public sealed partial class Viewport3DControl
     /// <summary>Delete (MainWindow) при наведённой или перетаскиваемой вершине: удалить вершину, а не весь элемент.</summary>
     public bool HandleDelete()
     {
+        if (HandleSiteDelete()) return true;
         if (_scene?.SelectedElement is not { } el || ActiveVertex is not { } index || !SceneStateService.IsContourEditable(el)) return false;
         if (!_scene.RemoveVertex(el, index))
         {

@@ -250,6 +250,38 @@
 
                 <!-- По центру: Segmented Control вида + инструменты отображения -->
                 <StackPanel x:Name="TopCenterTools" Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                    <!-- Волна 6: три Среды девелопера над одним проектом (1 клик из любой Среды) -->
+                    <Border x:Name="EnvironmentSegment" Style="{StaticResource SegmentTrackStyle}" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton GroupName="DevEnvironment" Style="{StaticResource SegmentRadioStyle}" MinWidth="34"
+                                         IsChecked="{x:Bind ViewModel.IsEnvSite, Mode=TwoWay}"
+                                         AutomationProperties.Name="{x:Bind L.T('W6EnvSite', L.Language), Mode=OneWay}"
+                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvSiteHint', L.Language), Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE707;" FontSize="12" />
+                                    <TextBlock Text="1" FontSize="11" FontFamily="Cascadia Mono, Consolas" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton GroupName="DevEnvironment" Style="{StaticResource SegmentRadioStyle}" MinWidth="34"
+                                         IsChecked="{x:Bind ViewModel.IsEnvBuilding, Mode=TwoWay}"
+                                         AutomationProperties.Name="{x:Bind L.T('W6EnvBuilding', L.Language), Mode=OneWay}"
+                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvBuildingHint', L.Language), Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE9D9;" FontSize="12" />
+                                    <TextBlock Text="2" FontSize="11" FontFamily="Cascadia Mono, Consolas" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton GroupName="DevEnvironment" Style="{StaticResource SegmentRadioStyle}" MinWidth="34"
+                                         IsChecked="{x:Bind ViewModel.IsEnvInteriors, Mode=TwoWay}"
+                                         AutomationProperties.Name="{x:Bind L.T('W6EnvInteriors', L.Language), Mode=OneWay}"
+                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvInteriorsHint', L.Language), Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE8A9;" FontSize="12" />
+                                    <TextBlock Text="3" FontSize="11" FontFamily="Cascadia Mono, Consolas" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                        </StackPanel>
+                    </Border>
                     <Border Style="{StaticResource SegmentTrackStyle}" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
                             <RadioButton GroupName="ViewMode" Style="{StaticResource SegmentRadioStyle}" MinWidth="52"
@@ -460,6 +492,25 @@
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
                 <StackPanel x:Name="StructuralPanelContent" Spacing="8" />
             </ScrollViewer>
+        </Border>
+
+        <!-- ═══════════════ Волна 6: панель активной Среды девелопера (содержимое — MainWindow.Wave6.cs) ═══════════════ -->
+        <Border x:Name="EnvironmentPanel" Width="312" Margin="0,62,328,52" Padding="12,10,8,10" CornerRadius="14" BorderThickness="1"
+                HorizontalAlignment="Right" VerticalAlignment="Stretch" UseLayoutRounding="True"
+                Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsEnvironmentPanelVisible), Mode=OneWay}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
+                <StackPanel x:Name="EnvironmentPanelContent" Spacing="8" />
+            </ScrollViewer>
+        </Border>
+
+        <!-- Индикатор автосохранения «Прогресс сохранён (ЧЧ:ММ:СС)» -->
+        <Border x:Name="AutoSavePill" Margin="0,0,328,16" Padding="10,4,12,4" CornerRadius="11" BorderThickness="1"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.HasAutoSaveStatus), Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <FontIcon Glyph="&#xE73E;" FontSize="11" Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="{x:Bind ViewModel.AutoSaveStatusText, Mode=OneWay}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+            </StackPanel>
         </Border>
 
         <Border Style="{StaticResource IslandStyle}" Width="268" Margin="0,62,328,0" Padding="12,8,8,10"

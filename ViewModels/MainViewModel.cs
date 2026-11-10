@@ -108,6 +108,7 @@ public sealed partial class MainViewModel : ObservableObject
         InitializeWave1();
         InitializeWave2();
         InitializeWave3();
+        InitializeWave6();
     }
 
     /// <summary>Стартовая сцена (шаблон стартового окна или Пресет 1 без оболочки): без записи в Undo и без пометки «изменено».</summary>
@@ -458,6 +459,9 @@ public sealed partial class MainViewModel : ObservableObject
 
         // Волна 4: ссылка на фото из интернета в панели команд → студия «Реконструкция по фото и плану».
         if (await TryOpenPhotoLinkAsync(text)) return;
+
+        // Волна 6: «Найди действующие ограничения / охранные зоны …» — поиск «НО» в сети и базе нормативов с окном подтверждения.
+        if (await TryHandleConstraintQueryAsync(text)) return;
 
         // Режим «Инженерный агент»: задача уходит агенту (инструменты программы, без снимков вида).
         if (IsAgentMode)
@@ -1487,6 +1491,31 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ───────────────────────────── Файлы проекта и внешние модули ─────────────────────────────
 
+    /// <summary>Параметры проекта для записи .aia (сохранение и автосохранение Волны 6).</summary>
+    public SceneProjectParameters CaptureProjectParameters()
+    {
+        var s = Settings.Current;
+        var spec = Analytics.Current;
+        return new SceneProjectParameters
+        {
+            AiModel = SelectedAiModel,
+            AppendToSite = IsAppendToSite,
+            ShowGridAxes = ShowGridAxes,
+            Wireframe = IsWireframe,
+            ThemeName = SelectedThemeName,
+            ConcretePricePerM3 = s.ConcretePricePerM3,
+            GlazingPricePerM2 = s.GlazingPricePerM2,
+            TotalConcreteM3 = Math.Round(spec.TotalConcrete, 3),
+            TotalGlazingM2 = Math.Round(spec.TotalGlazing, 3),
+            TotalCostRub = Math.Round(spec.TotalCost),
+            RebarPricePerTon = s.RebarPricePerTon,
+            TotalSteelKg = Math.Round(spec.TotalSteelKg, 1),
+            StructuralLoads = s.StructuralLoads.Clone(),
+            SolarRegion = SolarLocation.Id,
+            CostEstimate = BuildCostEstimate()
+        };
+    }
+
     public async Task SaveProjectAsync(string path)
     {
         try
@@ -1513,9 +1542,10 @@ public sealed partial class MainViewModel : ObservableObject
             };
             // Сообщение о сохранении добавляется до записи, чтобы оно попало в историю файла.
             ChatMessages.Add(ChatMessageModel.System(Loc.Format("ProjectSaved", path)));
-            await ProjectFiles.SaveAsync(path, new ProjectSnapshot(ViewMode.ToString(), Scene.ActiveLevelFilter, parameters, ChatMessages.ToList()));
+            await ProjectFiles.SaveAsync(path, new ProjectSnapshot(ViewMode.ToString(), Scene.ActiveLevelFilter, parameters, ChatMessages.ToList(), EnvironmentForFile));
             ProjectEstimate = parameters.CostEstimate;
             RememberRecentProject(path);
+            OnProjectSavedWave6(path);
         }
         catch (Exception ex)
         {
@@ -1528,6 +1558,20 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             var file = await ProjectFiles.OpenAsync(path);
+            ApplyOpenedProject(file);
+            Scene.IsDirty = false;
+            RememberRecentProject(path);
+        }
+        catch (Exception ex)
+        {
+            ShowError(Loc.Get("ErrorOpen"), ex.Message, $"AIA-IO-OPEN-{ex.HResult:X8}", ex.ToString());
+        }
+    }
+
+    /// <summary>Параметры сессии, история чата, смета и Среда из открытого файла (открытие проекта и восстановление сессии).</summary>
+    private void ApplyOpenedProject(SceneProjectFile file)
+    {
+        {
             if (Enum.TryParse<ViewportMode>(file.ViewMode, out var mode)) ViewMode = mode;
 
             // Параметры сессии из файла (тема и модель — только если они доступны на этом компьютере).
@@ -1547,12 +1591,7 @@ public sealed partial class MainViewModel : ObservableObject
             foreach (var m in file.ChatHistory) ChatMessages.Add(m);
             ChatMessages.Add(ChatMessageModel.System(Loc.Format("ProjectLoaded", Scene.ProjectName, file.Elements.Count)));
             RestoreCostEstimate(p.CostEstimate);
-            Scene.IsDirty = false;
-            RememberRecentProject(path);
-        }
-        catch (Exception ex)
-        {
-            ShowError(Loc.Get("ErrorOpen"), ex.Message, $"AIA-IO-OPEN-{ex.HResult:X8}", ex.ToString());
+            if (file.Site?.Environment is { } env) ActiveEnvironment = WorkspaceEnvironmentService.Parse(env, ActiveEnvironment);
         }
     }
 

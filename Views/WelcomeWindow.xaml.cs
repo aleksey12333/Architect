@@ -85,6 +85,7 @@ public sealed partial class WelcomeWindow : Window
         RefreshTexts();
         RefreshRecent();
         BuildTemplateCards();
+        InitializeWave6();
         Root.Loaded += OnRootLoaded;
     }
 

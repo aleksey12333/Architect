@@ -292,6 +292,17 @@ public partial class App : Application
             if (root.IsLoaded) await viewModel.OpenAnyAsync(path);
             else root.Loaded += async (_, _) => await viewModel.OpenAnyAsync(path);
         }
+        else if (choice.Kind == StartupChoiceKind.RestoreSession && window.Content is FrameworkElement restoreRoot)
+        {
+            // Волна 6: последняя рабочая сессия из автосохранения — с того же места (участок, ограничения, Среда, здание).
+            async Task Restore()
+            {
+                await viewModel.RestoreAutoSaveSessionAsync();
+                viewModel.RequestZoomExtents();
+            }
+            if (restoreRoot.IsLoaded) await Restore();
+            else restoreRoot.Loaded += async (_, _) => await Restore();
+        }
     }
 
     /// <summary>Стартовое окно, открытое из редактора кнопкой «Начальный экран» (null — закрыто).</summary>
@@ -338,6 +349,9 @@ public partial class App : Application
                 break;
             case StartupChoiceKind.OpenFile when choice.FilePath is { } path:
                 await viewModel.OpenAnyAsync(path);
+                break;
+            case StartupChoiceKind.RestoreSession:
+                await viewModel.RestoreAutoSaveSessionAsync();
                 break;
         }
         viewModel.RequestZoomExtents();

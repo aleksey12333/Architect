@@ -26,7 +26,7 @@ public sealed partial class MainWindow
         RootGrid.SizeChanged += (_, _) => LayoutTour();
     }
 
-    private bool AnyDialogOpen => _block34Open || _settingsOpen || _quantitiesOpen || _passportOpen;
+    private bool AnyDialogOpen => _block34Open || _settingsOpen || _quantitiesOpen || _passportOpen || _wave6DialogOpen;
 
     private ElementTheme DialogTheme => _theme.Current.IsLight ? ElementTheme.Light : ElementTheme.Dark;
 

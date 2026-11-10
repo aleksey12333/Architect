@@ -21,6 +21,9 @@ public sealed partial class SceneStateService
         SitePlanChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Участок из файла проекта / автосохранения: без шага журнала (история после открытия начинается заново).</summary>
+    public void RestoreSitePlan(GpzuSitePlan? plan) => SetSitePlan(plan);
+
     /// <summary>Ставит (или убирает при null) участок ГПЗУ одним шагом журнала с именем name.</summary>
     public void ApplySitePlan(GpzuSitePlan? plan, string name = "Участок ГПЗУ и охранные зоны")
     {

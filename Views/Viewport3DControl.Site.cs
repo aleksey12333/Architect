@@ -4,6 +4,7 @@ using AIArchitectStudio.Rendering;
 using AIArchitectStudio.Services.Gpzu;
 using HelixToolkit.SharpDX.Core;
 using HelixToolkit.WinUI;
+using Microsoft.UI.Xaml;
 using SharpDX;
 using Color = Windows.UI.Color;
 using CullMode = SharpDX.Direct3D11.CullMode;
@@ -38,7 +39,21 @@ public sealed partial class Viewport3DControl
     {
         if (_viewport is null || _scene is null || _theme is null) return;
         _siteGroup.Children.Clear();
-        if (_scene.SitePlan is not { } plan) return;
+        _siteHandles.Clear();
+        if (_scene.SitePlan is not { } plan)
+        {
+            // Без участка — прежняя абстрактная сетка земли.
+            _siteTerrain = null;
+            _gridMinor.Visibility = Visibility.Visible;
+            _gridMajor.Visibility = Visibility.Visible;
+            return;
+        }
+        // Волна 6: участок — главная земля проекта: сетка заменяется платформой с рельефом, грунтом и подземными сетями.
+        _siteTerrain = plan.Terrain(EditableSiteTerrainService.BuildingPads(_scene.Elements.ToList()));
+        _gridMinor.Visibility = Visibility.Collapsed;
+        _gridMajor.Visibility = Visibility.Collapsed;
+        AddTerrainPlatform(plan, _siteTerrain);
+        AddUnderground(plan, _siteTerrain);
         bool Visible(string id) => _vm?.IsSiteLayerVisible(id) ?? true;
         var theme = _theme.Current;
         var lines = new Dictionary<(Color Color, double Thickness), LineBuilder>();
@@ -47,7 +62,7 @@ public sealed partial class Viewport3DControl
             if (!lines.TryGetValue((c, thickness), out var lb)) lines[(c, thickness)] = lb = new LineBuilder();
             return lb;
         }
-        static Vector3 V(SitePoint p, double y) => new((float)p.X, (float)y, (float)p.Z);
+        Vector3 V(SitePoint p, double y) => new((float)p.X, (float)(y + TerrainH(p.X, p.Z)), (float)p.Z);
 
         // 1. Коридоры сетей: полупрозрачные полосы ± полуширина и ось трассы.
         foreach (var zone in plan.Zones.Where(z => z.Zone.IsNetwork && Visible(z.Id)))
@@ -100,13 +115,13 @@ public sealed partial class Viewport3DControl
             {
                 var p = plan.Boundary[i];
                 pins.AddLine(V(p, 0.36), V(p, 2.2));
-                SiteLabel(plan.PointNumbers[i], new Vector3((float)p.X, 2.6f, (float)p.Z), new Color4(1, 1, 1, 1), ToColor4(cobalt), 12, true);
+                SiteLabel(plan.PointNumbers[i], V(p, 2.6), new Color4(1, 1, 1, 1), ToColor4(cobalt), 12, true);
             }
             foreach (var s in plan.Segments)
             {
                 // Подпись длины — снаружи контура, на 1,6 м от середины стороны.
                 double ox = s.Mid.X - cx, oz = s.Mid.Z - cz, ol = Math.Max(1e-6, Math.Sqrt(ox * ox + oz * oz));
-                var at = new Vector3((float)(s.Mid.X + ox / ol * 1.6), 0.5f, (float)(s.Mid.Z + oz / ol * 1.6));
+                var at = V(new SitePoint(s.Mid.X + ox / ol * 1.6, s.Mid.Z + oz / ol * 1.6), 0.5);
                 if (s.Length >= 1.0)
                     SiteLabel(s.Length.ToString("0.00", SiteRu), at, ToColor4(theme.TextPrimary), WithAlpha(ToColor4(theme.Panel), 0.78f), 10, false);
             }
@@ -146,6 +161,7 @@ public sealed partial class Viewport3DControl
                 new Color4(1, 1, 1, 1), ToColor4(blue), 12, true);
         }
 
+        AddSiteHandles(plan);
         foreach (var ((color, thickness), lb) in lines)
             _siteGroup.Children.Add(new LineGeometryModel3D
             {
@@ -185,9 +201,9 @@ public sealed partial class Viewport3DControl
             foreach (var (a, b, c) in TriangulateRing(ring))
             {
                 int i = positions.Count;
-                positions.Add(new Vector3(a.X, (float)y, a.Y));
-                positions.Add(new Vector3(b.X, (float)y, b.Y));
-                positions.Add(new Vector3(c.X, (float)y, c.Y));
+                positions.Add(new Vector3(a.X, (float)(y + TerrainH(a.X, a.Y)), a.Y));
+                positions.Add(new Vector3(b.X, (float)(y + TerrainH(b.X, b.Y)), b.Y));
+                positions.Add(new Vector3(c.X, (float)(y + TerrainH(c.X, c.Y)), c.Y));
                 for (int k = 0; k < 3; k++) normals.Add(Vector3.UnitY);
                 indices.Add(i); indices.Add(i + 1); indices.Add(i + 2);
             }
@@ -237,7 +253,7 @@ public sealed partial class Viewport3DControl
             var b = ring[(i + 1) % ring.Count];
             double dx = b.X - a.X, dz = b.Z - a.Z, len = Math.Sqrt(dx * dx + dz * dz);
             if (len < 0.05) continue;
-            var center = new Vector3((float)((a.X + b.X) / 2), 0.175f, (float)((a.Z + b.Z) / 2));
+            var center = new Vector3((float)((a.X + b.X) / 2), (float)(0.175 + TerrainH((a.X + b.X) / 2, (a.Z + b.Z) / 2)), (float)((a.Z + b.Z) / 2));
             var dir = new Vector3((float)(dx / len), 0, (float)(dz / len));
             mb.AddBox(center, dir, Vector3.UnitY, (float)(len + 0.25), 0.35f, 0.25f);
         }

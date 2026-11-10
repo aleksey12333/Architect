@@ -10,7 +10,8 @@ public sealed record ProjectSnapshot(
     string ViewMode,
     int ActiveLevelFilter,
     SceneProjectParameters Parameters,
-    IReadOnlyList<ChatMessageModel> ChatHistory);
+    IReadOnlyList<ChatMessageModel> ChatHistory,
+    string? Environment = null);
 
 /// <summary>
 /// Проектные файлы .aia: выбор пути через FileOpenPicker / FileSavePicker (привязка к окну через
@@ -68,7 +69,8 @@ public sealed class ProjectFileService
             Elements = _scene.Elements.Select(e => e.Clone()).ToList(),
             GridAxes = _scene.GridAxes.Select(a => a.Clone()).ToList(),
             PinnedDimensions = _scene.PinnedDimensions.Select(d => d.Clone()).ToList(),
-            ChatHistory = snapshot.ChatHistory.ToList()
+            ChatHistory = snapshot.ChatHistory.ToList(),
+            Site = SiteWorkspaceRecord.From(_scene.SitePlan, snapshot.Environment)
         };
         await file.SaveAsync(path);
 
@@ -86,6 +88,8 @@ public sealed class ProjectFileService
         _scene.ProjectName = string.IsNullOrWhiteSpace(file.ProjectName) ? Path.GetFileNameWithoutExtension(path) : file.ProjectName;
         _scene.ProjectFilePath = path;
         _scene.ActiveLevelFilter = file.ActiveLevelFilter <= _scene.MaxLevelIndex ? file.ActiveLevelFilter : SceneStateService.AllLevels;
+        // Волна 6: участок ГПЗУ проекта — без шага журнала (открытие файла начинает историю заново).
+        if (file.Site?.ToPlan() is { } site) _scene.RestoreSitePlan(site);
         _scene.IsDirty = false;
         return file;
     }

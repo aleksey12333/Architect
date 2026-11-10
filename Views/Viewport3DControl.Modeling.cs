@@ -468,6 +468,8 @@ public sealed partial class Viewport3DControl
     /// </summary>
     private void ShowHud()
     {
+        // Волна 6: капсула точки участка (наведение / перетаскивание пина) — вместо капсулы элемента.
+        if ((_siteDrag is not null || _siteHover is not null) && !_walkActive && ShowSiteHud()) return;
         if (_vm is null || _scene?.SelectedElement is not { } el || _walkActive)
         {
             HudBorder.Visibility = Visibility.Collapsed;
@@ -525,6 +527,7 @@ public sealed partial class Viewport3DControl
     /// <summary>3D-точка, к которой привязана капсула: центр активной грани или конец стрелки Gizmo.</summary>
     private Vector3? HudAnchor()
     {
+        if (SiteHudAnchor() is { } siteAnchor) return siteAnchor;
         if (_scene?.SelectedElement is not { } el) return null;
         if (_typing is null && _pullFace is null && _dragElement is null && VertexHudAnchor() is { } vertexAnchor) return vertexAnchor;
         PushPullFace? face = null;
@@ -776,13 +779,21 @@ public sealed partial class Viewport3DControl
         }
         _walkPitch = -4 * Math.PI / 180;
         _walkSurfaces = null;
-        _walkObstacles = null;
+        _walkObstacles = null; _walkWorld = null;
         var marks = StructuralAxesBuilder.LevelElevations(_scene.Elements.Where(e => e.BuildingGroupId == groupId).ToList());
         double probe = (marks.FirstOrDefault(m => m.Level == level)?.Elevation ?? 0) + 0.05;
-        _walkFloor = SurfaceAt(_walkX, _walkZ, probe);
-        // Старт не внутри стены или колонны: игрока выталкивает на ближайшее свободное место.
-        (_walkX, _walkZ, _) = WalkCollisionService.Move(WalkObstacles(), _walkX, _walkZ, 0, 0, _walkFloor, EyeHeight);
-        _walkFloor = SurfaceAt(_walkX, _walkZ, probe);
+        _walkWorld = null;
+        _walkFloor = WalkPhysicsService.FloorAt(WalkWorld(), _walkX, _walkZ, probe, WalkPhysicsService.MaxStep);
+        // Старт не внутри стены или колонны: капсулу выталкивает на ближайшее свободное место; двери у входа открыты.
+        if (door is not null) WalkWorld().OpenDoors.Add(door.Id);
+        WalkWorld().RefreshDoors();
+        _walkOpenDoors.Clear();
+        foreach (var id in WalkWorld().OpenDoors) _walkOpenDoors.Add(id);
+        ApplyDoorVisuals();
+        (_walkX, _walkZ) = WalkCollisionService.Resolve(WalkWorld().ActiveObstacles, _walkX, _walkZ, WalkPhysicsService.Radius);
+        _walkFloor = WalkPhysicsService.FloorAt(WalkWorld(), _walkX, _walkZ, probe, WalkPhysicsService.MaxStep);
+        _walkVy = 0;
+        _walkStatusFloor = _walkFloor;
         _walkEye = _walkFloor + EyeHeight;
 
         _walkActive = true;
@@ -816,6 +827,9 @@ public sealed partial class Viewport3DControl
     {
         if (!_walkActive || _viewport is null) return;
         _walkActive = false;
+        // Двери возвращаются в закрытое положение (вид модели — как до прогулки).
+        _walkOpenDoors.Clear();
+        ApplyDoorVisuals();
         _walkTimer?.Stop();
         EndLook();
         _viewport.IsZoomEnabled = true;
@@ -863,13 +877,15 @@ public sealed partial class Viewport3DControl
                 double rx = Math.Cos(_walkYaw), rz = Math.Sin(_walkYaw);
                 double mx = f * fx + r * rx, mz = f * fz + r * rz;
                 double len = Math.Sqrt(mx * mx + mz * mz);
-                // Сфера коллизии R = 0.25 м: упор в стены и колонны, скольжение вдоль них, проход сквозь двери и проёмы.
-                (_walkX, _walkZ, _) = WalkCollisionService.Move(WalkObstacles(), _walkX, _walkZ, mx / len * speed * dt, mz / len * speed * dt, _walkFloor, EyeHeight);
+                // Волна 6: капсула R = 0,28 м — упор в стены, колонны, парапеты и закрытые двери со скольжением вдоль
+                // поверхности; ступени до 0,22 м — автоматически; ниже — падение по гравитации.
+                WalkPhysicsStep(mx / len * speed * dt, mz / len * speed * dt, dt);
             }
+            else WalkPhysicsStep(0, 0, dt);
         }
-        double floor = SurfaceAt(_walkX, _walkZ, _walkFloor);
-        bool floorChanged = Math.Abs(floor - _walkFloor) > 0.05;
-        _walkFloor = floor;
+        double floor = _walkFloor;
+        bool floorChanged = Math.Abs(floor - _walkStatusFloor) > 0.05;
+        if (floorChanged) _walkStatusFloor = floor;
         _walkEye += (_walkFloor + EyeHeight - _walkEye) * (1 - Math.Exp(-dt * 9));
         camera.Position = new Vector3((float)_walkX, (float)_walkEye, (float)_walkZ);
         camera.LookDirection = WalkLook();
@@ -881,7 +897,11 @@ public sealed partial class Viewport3DControl
     {
         switch (key)
         {
-            case VirtualKey.E or VirtualKey.PageUp:
+            case VirtualKey.E:
+                // Волна 6: E — открыть / закрыть дверь перед собой; без двери рядом — этаж выше (как прежде).
+                if (!ToggleDoorAhead()) ChangeWalkLevel(+1);
+                return true;
+            case VirtualKey.PageUp:
                 ChangeWalkLevel(+1);
                 return true;
             case VirtualKey.Q or VirtualKey.PageDown:
@@ -901,9 +921,10 @@ public sealed partial class Viewport3DControl
         int current = CurrentWalkLevel(marks);
         int target = Math.Clamp(current + direction, 0, marks.Count - 1);
         if (target == current) return;
-        _walkFloor = SurfaceAt(_walkX, _walkZ, marks[target].Elevation + 0.05);
+        _walkFloor = WalkPhysicsService.FloorAt(WalkWorld(), _walkX, _walkZ, marks[target].Elevation + 0.05, WalkPhysicsService.MaxStep);
+        _walkVy = 0;
         // На другом этаже под ногами может оказаться стена — выталкиваем на свободное место.
-        (_walkX, _walkZ, _) = WalkCollisionService.Move(WalkObstacles(), _walkX, _walkZ, 0, 0, _walkFloor, EyeHeight);
+        (_walkX, _walkZ) = WalkCollisionService.Resolve(WalkWorld().ActiveObstacles, _walkX, _walkZ, WalkPhysicsService.Radius);
         UpdateWalkStatus();
     }
 
@@ -932,7 +953,7 @@ public sealed partial class Viewport3DControl
         if (_vm is null) return;
         var marks = WalkLevels();
         int level = marks.Count > 0 ? marks[CurrentWalkLevel(marks)].Level + 1 : 1;
-        _vm.WalkStatusText = _vm.Loc.Format("WalkStatus", level, GostDrawingPdfExporter.Elevation(_walkFloor));
+        _vm.WalkStatusText = _vm.Loc.Format("WalkStatus", level, GostDrawingPdfExporter.Elevation(_walkFloor)) + WalkPhysicsStatus();
     }
 
     /// <summary>
@@ -996,12 +1017,13 @@ public sealed partial class Viewport3DControl
         {
             // Правая кнопка на пине вершины контура — удалить вершину.
             var point = e.GetCurrentPoint(_viewport);
-            if (point.Properties.IsRightButtonPressed && TryRemoveVertexAt(point.Position)) e.Handled = true;
+            if (point.Properties.IsRightButtonPressed && (TryRemoveSiteVertexAt(point.Position) || TryRemoveVertexAt(point.Position))) e.Handled = true;
             return;
         }
         if (!_walkActive || _viewport is null) return;
         _lookPointer = e.Pointer;
         _lookLast = e.GetCurrentPoint(_viewport).Position;
+        _walkPressPosition = _lookLast;
         _viewport.CapturePointer(e.Pointer);
         e.Handled = true;
     }

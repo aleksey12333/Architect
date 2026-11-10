@@ -73,6 +73,10 @@ public sealed class AppSettings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PrimaryLocalModelId { get; set; }
 
+    /// <summary>Волна 6: Среда девелопера, выбранная на начальном экране или в верхнем баре (null — «Объём и Конструктив»; не пишется по умолчанию).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DeveloperEnvironment { get; set; }
+
     /// <summary>Запускать <c>ollama serve</c> скрыто при старте, если сервер не отвечает (Zero-Config).</summary>
     public bool OllamaAutoStart { get; set; } = true;
 

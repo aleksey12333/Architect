@@ -236,6 +236,7 @@ public sealed partial class Viewport3DControl : UserControl
         _viewport.Items.Add(_shadowGroup);
         _viewport.Items.Add(_axesGroup);
         _viewport.Items.Add(_siteGroup);
+        _viewport.Items.Add(_sitePreviewGroup);
         _viewport.Items.Add(_underlayGroup);
         _viewport.Items.Add(_elementsGroup);
         _viewport.Items.Add(_stressGroup);
@@ -297,6 +298,8 @@ public sealed partial class Viewport3DControl : UserControl
         _scene.DimensionsChanged += OnDimensionsChanged;
         _scene.SitePlanChanged += (_, _) => QueueSiteRebuild();
         if (_vm is not null) _vm.SiteLayersChanged += (_, _) => QueueSiteRebuild();
+        // Волна 6: площадки зданий срезают рельеф — платформа участка перестраивается после правок (с задержкой).
+        _scene.DocumentChanged += (_, _) => { if (_scene.SitePlan is not null) QueueSiteTerrainRebuild(); };
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -333,6 +336,12 @@ public sealed partial class Viewport3DControl : UserControl
             case nameof(MainViewModel.Modules):
                 QueueRebarRebuild();
                 break;
+            case nameof(MainViewModel.IsSiteEditing):
+                QueueSiteRebuild();
+                break;
+            case nameof(MainViewModel.SelectedSiteVertex):
+                RefreshSiteHandleColors();
+                break;
             case nameof(MainViewModel.IsStructuralMode):
                 ApplyStress(animate: _vm!.IsStructuralMode);
                 QueueStructuralRebuild();
@@ -368,7 +377,7 @@ public sealed partial class Viewport3DControl : UserControl
         // Подложка лежит на отметке активного этажа фильтра.
         RebuildUnderlay();
         _walkSurfaces = null;
-        _walkObstacles = null;
+        _walkObstacles = null; _walkWorld = null;
         _measureTargets = null;
         QueueShadowRebuild();
     }
@@ -423,7 +432,7 @@ public sealed partial class Viewport3DControl : UserControl
         RebuildAxes();
         UpdateSelectionVisuals();
         _walkSurfaces = null;
-        _walkObstacles = null;
+        _walkObstacles = null; _walkWorld = null;
         _measureTargets = null;
         QueueShadowRebuild();
     }
@@ -945,6 +954,9 @@ public sealed partial class Viewport3DControl : UserControl
             return;
         }
 
+        // Волна 6: пины поворотных точек участка и «+» сторон (Среда 1) — приоритетнее ручек элементов.
+        if (TryBeginSiteEdit(e.Position, e.OriginalInputEventArgs?.Pointer)) return;
+
         // Пины вершин и маркеры рёбер контура — приоритетнее всех ручек (лежат на верхней грани плиты).
         if (_scene.SelectedElement is { } contourTarget && !_scene.IsMultiSelection && TryBeginVertexEdit(contourTarget, e.Position, e.OriginalInputEventArgs?.Pointer))
             return;
@@ -1070,6 +1082,11 @@ public sealed partial class Viewport3DControl : UserControl
     /// <summary>Сырые события указателя: Helix не шлёт OnMouse3DMove при зажатой кнопке, поэтому Gizmo ведём сами.</summary>
     private void OnViewportPointerMoved(object sender, PointerRoutedEventArgs e)
     {
+        if (_siteDrag is not null && _viewport is not null)
+        {
+            DragSiteVertexTo(e.GetCurrentPoint(_viewport).Position);
+            return;
+        }
         if (_vertexElement is not null && _viewport is not null)
         {
             DragVertexTo(e.GetCurrentPoint(_viewport).Position);
@@ -1097,7 +1114,7 @@ public sealed partial class Viewport3DControl : UserControl
         {
             if (_viewport is null) return;
             if (_vm?.IsMeasureMode == true) UpdateMeasureHover(e.GetCurrentPoint(_viewport).Position);
-            else UpdateHover(e.GetCurrentPoint(_viewport).Position);
+            else if (!UpdateSiteHover(e.GetCurrentPoint(_viewport).Position)) UpdateHover(e.GetCurrentPoint(_viewport).Position);
             return;
         }
         var position = e.GetCurrentPoint(_viewport).Position;
@@ -1141,7 +1158,11 @@ public sealed partial class Viewport3DControl : UserControl
     {
         if (_lookPointer is not null)
         {
+            // Волна 6: клик без поворота взгляда по двери — открыть / закрыть.
+            var up = e.GetCurrentPoint(_viewport).Position;
+            bool click = Math.Abs(up.X - _walkPressPosition.X) + Math.Abs(up.Y - _walkPressPosition.Y) < 5;
             EndLook(e.Pointer);
+            if (click) TryToggleDoorAt(up);
             return;
         }
         EndDrag(e.Pointer);
@@ -1177,6 +1198,11 @@ public sealed partial class Viewport3DControl : UserControl
 
     private void EndDrag(Microsoft.UI.Xaml.Input.Pointer? pointer = null)
     {
+        if (_siteDrag is not null)
+        {
+            EndSiteDrag();
+            return;
+        }
         if (_vertexElement is not null)
         {
             EndVertexDrag(pointer);

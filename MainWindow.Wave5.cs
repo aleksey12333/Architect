@@ -31,6 +31,7 @@ public sealed partial class MainWindow
         {
             _gpzuOpen = false;
             _block34Open = false;
+            ShowPendingConstraints();
         }
     }
 }

@@ -117,11 +117,12 @@ public static partial class SiteBoundaryBuilder
     }
 
     /// <summary>План участка в сцене: граница, стороны, зоны (контуры, оси и полосы коридоров), существующие объекты, потолок высоты.</summary>
-    public static GpzuSitePlan Build(GpzuDocument doc, TopoSurvey? topo = null)
+    public static GpzuSitePlan Build(GpzuDocument doc, TopoSurvey? topo = null, (double X, double Y)? origin = null)
     {
         if (doc.Boundary.Count < 3) throw new InvalidOperationException("В документе нет контура земельного участка (меньше трёх характерных точек).");
-        var (x0, y0) = doc.Centroid;
-        // Начало координат округляется до 1 см — числа сцены остаются «ровными» и обратимыми.
+        var (x0, y0) = origin ?? doc.Centroid;
+        // Начало координат округляется до 1 см — числа сцены остаются «ровными» и обратимыми. При правке участка (Волна 6)
+        // начало сохраняется прежним, иначе вся сцена «уехала» бы вслед за центроидом.
         x0 = Math.Round(x0, 2);
         y0 = Math.Round(y0, 2);
         SitePoint S(GeoPoint p) => new(p.Y - y0, -(p.X - x0));
@@ -168,8 +169,47 @@ public static partial class SiteBoundaryBuilder
             Existing = existing,
             GroundElevation = ground,
             CeilingAbs = ceilingAbs,
-            CeilingHeight = ceilingAbs is { } c && ground > 0 ? c - ground : null
+            CeilingHeight = ceilingAbs is { } c && ground > 0 ? c - ground : null,
+            Relief = topo is null || ground <= 0 ? [] : ReliefSamples(topo, boundary, S)
         };
+    }
+
+    /// <summary>
+    /// Отметки рельефа топосъёмки вокруг участка (окно контура + 40 м) в координатах сцены, прореженные сеткой 2 м (на ячейку —
+    /// медиана) и не больше 900 точек: рельеф платформы участка, выемка/насыпь и прогулка по земле.
+    /// </summary>
+    public static List<TerrainSample> ReliefSamples(TopoSurvey topo, IReadOnlyList<SitePoint> boundary, Func<GeoPoint, SitePoint> toScene, double margin = 40)
+    {
+        double minX = boundary.Min(p => p.X) - margin, maxX = boundary.Max(p => p.X) + margin;
+        double minZ = boundary.Min(p => p.Z) - margin, maxZ = boundary.Max(p => p.Z) + margin;
+        var cells = new Dictionary<(int, int), List<(double X, double Z, double E)>>();
+        foreach (var e in topo.Elevations)
+        {
+            if (e.Z < 50 || e.Z > 3000) continue;
+            var p = toScene(new GeoPoint(string.Empty, e.X, e.Y));
+            if (p.X < minX || p.X > maxX || p.Z < minZ || p.Z > maxZ) continue;
+            var key = ((int)Math.Floor(p.X / 2), (int)Math.Floor(p.Z / 2));
+            if (!cells.TryGetValue(key, out var list)) cells[key] = list = [];
+            list.Add((p.X, p.Z, e.Z));
+        }
+        var result = cells.OrderBy(c => c.Key.Item1).ThenBy(c => c.Key.Item2).Select(c =>
+        {
+            var sorted = c.Value.OrderBy(v => v.E).ToList();
+            var m = sorted[sorted.Count / 2];
+            return new TerrainSample(Math.Round(m.X, 3), Math.Round(m.Z, 3), m.E);
+        }).ToList();
+        if (result.Count > 900)
+        {
+            int stride = (int)Math.Ceiling(result.Count / 900.0);
+            result = result.Where((_, i) => i % stride == 0).ToList();
+        }
+        // Выбросы (опечатки отметок, отметки крыш) — дальше 6 м от медианы — отбрасываются.
+        if (result.Count > 4)
+        {
+            double median = result.Select(r => r.ElevationBs).OrderBy(v => v).ElementAt(result.Count / 2);
+            result = result.Where(r => Math.Abs(r.ElevationBs - median) <= 6).ToList();
+        }
+        return result;
     }
 
     private static bool Overlaps(IReadOnlyList<SitePoint> a, IReadOnlyList<SitePoint> b)

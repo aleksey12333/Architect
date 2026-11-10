@@ -87,11 +87,15 @@ public sealed record StartupChoice(StartupChoiceKind Kind, string? PresetId = nu
     public static StartupChoice Preset(string presetId) => new(StartupChoiceKind.Preset, PresetId: presetId);
 
     public static StartupChoice Open(string path) => new(StartupChoiceKind.OpenFile, FilePath: path);
+
+    /// <summary>Волна 6: восстановить последнюю рабочую сессию из автосохранения.</summary>
+    public static StartupChoice Restore { get; } = new(StartupChoiceKind.RestoreSession);
 }
 
 public enum StartupChoiceKind
 {
     Empty,
     Preset,
-    OpenFile
+    OpenFile,
+    RestoreSession
 }

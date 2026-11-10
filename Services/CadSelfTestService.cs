@@ -397,6 +397,10 @@ public static partial class CadSelfTestService
         // ── Волна 5: ГПЗУ, границы участка МСК, ЗОУИТ и подзоны ПАТ, коридоры сетей топосъёмки, проверка посадки, лист ГПЗУ.
         report.AppendLine().AppendLine("═══ Волна 5: ГПЗУ и охранные зоны — 19 точек МСК-66, ЗОУИТ и подзоны ПАТ, сети ИГДИ (DWG), участок в сцене одним шагом, проверка посадки, лист ГПЗУ ═══");
         failures += await CheckWave5Async(directory, report);
+
+        // ── Волна 6: живой участок, «НО» документа и веб-поиск с подтверждением, три Среды, автосохранение и выход, физический проход.
+        report.AppendLine().AppendLine("═══ Волна 6: живой участок и рельеф, глубокое чтение «НО» и поиск ограничений с подтверждением, три Среды девелопера, автосохранение и защита выхода, физический проход ═══");
+        failures += await CheckWave6Async(directory, report);
         ReinforcementCalculator.StrictMinimum = strictMinimum;
 
         report.Insert(0, failures == 0 ? "ИТОГ: УСПЕХ — расхождений нет\n\n" : $"ИТОГ: ОШИБОК {failures}\n\n");

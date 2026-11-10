@@ -1078,7 +1078,7 @@ public sealed partial class LocalizationService : ObservableObject
     {
         if (!Strings.TryGetValue(key, out var pair) && !LibraryStrings.TryGetValue(key, out pair) && !Wave1Strings.TryGetValue(key, out pair) &&
             !Wave2Strings.TryGetValue(key, out pair) && !Wave3Strings.TryGetValue(key, out pair) && !Wave4Strings.TryGetValue(key, out pair) &&
-            !Wave41Strings.TryGetValue(key, out pair) && !Wave5Strings.TryGetValue(key, out pair)) return key;
+            !Wave41Strings.TryGetValue(key, out pair) && !Wave5Strings.TryGetValue(key, out pair) && !Wave6Strings.TryGetValue(key, out pair)) return key;
         return language == English ? pair.En : pair.Ru;
     }
 }

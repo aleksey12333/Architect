@@ -157,6 +157,7 @@ public static class GpzuComplianceVerifier
         if (doc.Regulation.MinParkingPlaces is { } parking)
             report.Findings.Add(new GpzuFinding(GpzuSeverity.Info, "GPZU-PARKING", $"Машино-места: не менее {parking}",
                 "Количество машино-мест по регламенту подзоны проверяется в проекте (подземная автостоянка или открытые места) — в 3D-модели не подсчитывается.", [], null));
+        if (plan.Constraints.Count > 0) VerifyConstraints(report, plan, building, outlines, maxTop, ground);
         return report;
     }
 
@@ -165,7 +166,8 @@ public static class GpzuComplianceVerifier
     /// границы и рёбра её не пересекают; из них — с наибольшим запасом до коридоров сетей (ось трассы − полуширина), затем ближе к центру.
     /// Возвращает сдвиг (dX, dZ) или null, если здание не помещается.
     /// </summary>
-    public static (double Dx, double Dz, double Clearance)? FindPlacement(GpzuSitePlan plan, IReadOnlyList<ArchitecturalElement> elements, double step = 1.5)
+    public static (double Dx, double Dz, double Clearance)? FindPlacement(GpzuSitePlan plan, IReadOnlyList<ArchitecturalElement> elements, double step = 1.5,
+        IReadOnlyList<IReadOnlyList<SitePoint>>? obstacles = null, double gap = 0)
     {
         var rings = elements.Where(IsBuildingPart).Select(e => ElementGeometryBuilder.WorldOutline(e).Select(p => new SitePoint(p.X, p.Z)).ToList()).ToList();
         if (rings.Count == 0) return null;
@@ -184,6 +186,8 @@ public static class GpzuComplianceVerifier
                 if (!hull.All(p => SiteBoundaryBuilder.Contains(plan.Boundary, p.X + dx, p.Z + dz))) continue;
                 var moved = outline.Select(p => new SitePoint(p.X + dx, p.Z + dz)).ToList();
                 if (EdgesCross(moved, plan.Boundary)) continue;
+                // Волна 6: несколько строений на участке — разрыв gap до уже стоящих зданий.
+                if (obstacles is { Count: > 0 } && obstacles.Any(o => RingDistance(moved, o) < gap)) continue;
                 double clearance = double.MaxValue;
                 foreach (var zone in plan.Zones.Where(zn => zn.Zone.IsNetwork && zn.Lines.Count > 0))
                     clearance = Math.Min(clearance, DistanceRingToLines(moved, zone.Lines, out _) - zone.Zone.CorridorHalfWidth);
@@ -246,6 +250,112 @@ public static class GpzuComplianceVerifier
                 }
         }
         return best;
+    }
+
+    /// <summary>Расстояние между контурами (0 — пересекаются или один внутри другого).</summary>
+    public static double RingDistance(IReadOnlyList<SitePoint> a, IReadOnlyList<SitePoint> b)
+    {
+        if (RingsOverlap(a, b)) return 0;
+        double best = double.MaxValue;
+        foreach (var p in a) best = Math.Min(best, DistanceToRing(b, p.X, p.Z));
+        foreach (var p in b) best = Math.Min(best, DistanceToRing(a, p.X, p.Z));
+        return best;
+    }
+
+    /// <summary>
+    /// Волна 6: проверки по подтверждённым пользователем ограничениям и «НО» документа (план участка → Constraints): предельная
+    /// высота над землёй и абсолютная отметка, отступ от границ, буфер охранной / санитарной зоны вокруг сети, вынос сетей,
+    /// лимит жилой площади, машино-места, пункты, требующие согласования (СТУ, оператор аэродрома, культурное наследие).
+    /// Без подтверждённых пунктов проверка не меняется.
+    /// </summary>
+    private static void VerifyConstraints(GpzuComplianceReport report, GpzuSitePlan plan, List<ArchitecturalElement> building,
+        List<(ArchitecturalElement Element, List<SitePoint> Ring)> outlines, double maxTop, double ground)
+    {
+        foreach (var c in plan.Constraints.Where(c => c.IsActive))
+        {
+            string head = c.Title.Length > 0 ? c.Title : c.Category.ToString();
+            string src = (c.Clause.Length > 0 ? c.Clause + ", " : string.Empty) + (c.Source.Length > 0 ? c.Source : "подтверждено пользователем");
+            if (c.MaxHeightM is { } hmax)
+            {
+                var tallest = building.OrderByDescending(e => e.TopY + Math.Max(0, e.RepeatLevels - 1) * e.LevelHeight).Take(3).Select(e => e.Id).ToList();
+                report.Findings.Add(maxTop <= hmax + 1e-6
+                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-HEIGHT", $"«НО»: {head}", string.Create(Ru, $"Высота здания {maxTop:0.00} м ≤ {hmax:0.00} м ({src})."), [], null)
+                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-HEIGHT", $"«НО»: превышена предельная высота — {head}",
+                        string.Create(Ru, $"Высота здания {maxTop:0.00} м > {hmax:0.00} м на {maxTop - hmax:0.00} м ({src})."), tallest, null));
+            }
+            if (c.MaxHeightAbsM is { } habs && ground > 0)
+            {
+                double top = ground + maxTop;
+                report.Findings.Add(top <= habs + 1e-6
+                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-HABS", $"«НО»: {head}", string.Create(Ru, $"Верх {top:0.00} м БС ≤ {habs:0.00} м БС ({src})."), [], null)
+                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-HABS", $"«НО»: превышена абсолютная отметка — {head}",
+                        string.Create(Ru, $"Верх {top:0.00} м БС > {habs:0.00} м БС ({src})."), [], null));
+            }
+            if (c.MinSetbackM is { } setback && setback > 0)
+            {
+                var bad = new List<string>();
+                double worst = double.MaxValue;
+                SitePoint? at = null;
+                foreach (var (e, ring) in outlines)
+                    foreach (var p in ring)
+                    {
+                        double d = SiteBoundaryBuilder.Contains(plan.Boundary, p.X, p.Z) ? DistanceToRing(plan.Boundary, p.X, p.Z) : 0;
+                        if (d < worst) { worst = d; at = p; }
+                        if (d < setback - 1e-6 && !bad.Contains(e.Id)) bad.Add(e.Id);
+                    }
+                report.Findings.Add(bad.Count == 0
+                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-SETBACK", $"«НО»: {head}", string.Create(Ru, $"Наименьший отступ здания от границы {worst:0.00} м ≥ {setback:0.0#} м ({src})."), [], null)
+                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-SETBACK", $"«НО»: нарушен отступ от границы — {head}",
+                        string.Create(Ru, $"Элементов ближе {setback:0.0#} м к границе: {bad.Count}, наименьший отступ {Math.Max(0, worst):0.00} м ({src})."), bad, null, at));
+            }
+            if (c.BufferRadiusM is { } buffer && buffer > 0 && c.Category is ConstraintCategory.ProtectionZone or ConstraintCategory.SanitaryZone or ConstraintCategory.NetworkRelocation)
+            {
+                var zones = plan.Zones.Where(z => z.Zone.IsNetwork && z.Lines.Count > 0 && (c.NetworkKind is null || z.Zone.Kind == c.NetworkKind)).ToList();
+                if (zones.Count == 0)
+                {
+                    report.Findings.Add(new GpzuFinding(GpzuSeverity.Info, "GPZU-CNS-BUFFER", $"«НО»: {head}",
+                        string.Create(Ru, $"Зона ± {buffer:0.0#} м: сети этого вида на участке не найдены в топосъёмке ({src})."), [], null));
+                }
+                else
+                {
+                    var hit = new List<string>();
+                    double min = double.MaxValue;
+                    foreach (var zone in zones)
+                        foreach (var (e, ring) in outlines)
+                        {
+                            double d = DistanceRingToLines(ring, zone.Lines, out _);
+                            min = Math.Min(min, d);
+                            if (d < buffer && !hit.Contains(e.Id)) hit.Add(e.Id);
+                        }
+                    report.Findings.Add(hit.Count == 0
+                        ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-BUFFER", $"«НО»: {head}", string.Create(Ru, $"До оси сети {min:0.0} м ≥ {buffer:0.0#} м ({src})."), [], null)
+                        : new GpzuFinding(c.RequiresNetworkRelocation ? GpzuSeverity.Warning : GpzuSeverity.Critical, "GPZU-CNS-BUFFER",
+                            $"«НО»: здание в зоне ± {buffer:0.0#} м — {head}",
+                            string.Create(Ru, $"Элементов в зоне: {hit.Count}, до оси {Math.Max(0, min):0.00} м ({src}).") +
+                            (c.RequiresNetworkRelocation ? " Документ допускает размещение после выноса сети по ТУ." : string.Empty), hit, null));
+                }
+            }
+            else if (c.RequiresNetworkRelocation)
+                report.Findings.Add(new GpzuFinding(GpzuSeverity.Warning, "GPZU-CNS-RELOCATE", $"«НО»: {head}",
+                    $"Требуется вынос (переустройство) сетей / технические условия балансодержателя до начала строительства ({src}).", [], null));
+            if (c.MaxLivingAreaM2 is { } living)
+                report.Findings.Add(report.LivingAreaEstimate <= living
+                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-LIVING", $"«НО»: {head}", string.Create(Ru, $"Жильё (оценка) {report.LivingAreaEstimate:N0} ≤ {living:N0} м² ({src})."), [], null)
+                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-LIVING", $"«НО»: превышен лимит жилой площади — {head}",
+                        string.Create(Ru, $"Жильё (оценка) {report.LivingAreaEstimate:N0} > {living:N0} м² ({src})."), [], null));
+            if (c.MinParkingSpots is { } spots)
+            {
+                // Машино-места: площадь уровней паркингов (постройки с «Паркинг» в имени) / 25 м² на место.
+                double parkingArea = building.Where(e => e.Category == BimCategory.Slab && (e.Name?.Contains("Паркинг", StringComparison.OrdinalIgnoreCase) ?? false))
+                    .Sum(e => Area(ElementGeometryBuilder.WorldOutline(e)) * Math.Max(1, e.RepeatLevels));
+                int estimate = (int)Math.Floor(parkingArea / 25.0);
+                report.Findings.Add(new GpzuFinding(estimate >= spots ? GpzuSeverity.Ok : GpzuSeverity.Warning, "GPZU-CNS-PARKING", $"«НО»: {head}",
+                    string.Create(Ru, $"Машино-мест в модели (оценка по площади паркингов, 25 м²/место): {estimate} {(estimate >= spots ? "≥" : "<")} {spots} ({src})."), [], null));
+            }
+            if (c.Impact == ConstraintImpact.RequiresApproval && !c.HasNumbers && !c.RequiresNetworkRelocation)
+                report.Findings.Add(new GpzuFinding(GpzuSeverity.Warning, "GPZU-CNS-APPROVAL", $"«НО»: требуется согласование — {head}",
+                    (c.ImpactText.Length > 0 ? c.ImpactText + " " : string.Empty) + $"({src}).", [], null));
+        }
     }
 
     private static bool RingsOverlap(IReadOnlyList<SitePoint> a, IReadOnlyList<SitePoint> b) =>

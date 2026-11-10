@@ -125,6 +125,12 @@ public sealed class SceneProjectFile
 
     public List<ChatMessageModel> ChatHistory { get; set; } = [];
 
+    /// <summary>
+    /// Волна 6: участок ГПЗУ проекта (живая земля), подтверждённые ограничения и активная Среда девелопера. null — блок не пишется
+    /// (проекты без участка и эталон ядра не меняются); старые версии программы блок пропускают.
+    /// </summary>
+    public SiteWorkspaceRecord? Site { get; set; }
+
     public static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,

@@ -39,9 +39,17 @@ public sealed partial class MainViewModel
     private void OpenGpzuStudio() => GpzuStudioRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Чтение ГПЗУ (PDF/XML/JSON/TXT/CSV) в фоне; с уже загруженной топосъёмкой — сразу сведение сетей и отметок.</summary>
-    public async Task<GpzuDocument> LoadGpzuAsync(string path)
+    public async Task<GpzuDocument> LoadGpzuAsync(string path, bool deepRead = true)
     {
         var doc = await Task.Run(() => GpzuParser.Load(path));
+        // Волна 6: помимо координат — полное чтение текста документа (все «НО», сноски, условия) ядром и моделью; итог — в окно
+        // подтверждения, когда студия закроется (одно окно за раз).
+        if (deepRead && !IsSelfTestRun && !IsDebugAutomation)
+            _ = Task.Run(async () =>
+            {
+                var text = DeepDocumentConstraintService.Read(path);
+                await RunOnUiAsync(() => ExtractConstraintsAsync(text, DefaultConstraintModelKey, openDialog: true));
+            });
         if (GpzuTopo is { } topo && doc.Boundary.Count > 2)
         {
             var refreshed = await Task.Run(() => TopoSurveyReader.Read(topo.SourceFile, doc.Boundary));
@@ -70,6 +78,7 @@ public sealed partial class MainViewModel
     /// </summary>
     public GpzuComplianceReport? BuildSiteInScene(GpzuSitePlan plan)
     {
+        plan = WithDeferredConstraints(plan);
         Scene.ApplySitePlan(plan, Loc.Format("W5UndoName", plan.Document.Cadastral));
         var report = VerifyGpzuSite();
         var doc = plan.Document;

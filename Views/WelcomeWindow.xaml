@@ -283,7 +283,52 @@
             </Grid.RowDefinitions>
             <TextBlock x:Name="GreetingText" FontSize="28" FontWeight="SemiBold" CharacterSpacing="-10" Foreground="{StaticResource TextPrimaryBrush}" />
             <TextBlock Grid.Row="1" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind L.T('WelcomeSubtitle', L.Language), Mode=OneWay}" />
-            <TextBlock Grid.Row="2" Style="{StaticResource SectionHeaderStyle}" Margin="2,22,0,8" Text="{x:Bind L.T('WelcomeTemplates', L.Language), Mode=OneWay}" />
+            <StackPanel Grid.Row="2" Spacing="10" Margin="0,16,0,0">
+                <!-- Волна 6: восстановление последней рабочей сессии из автосохранения в 1 клик -->
+                <Button x:Name="RestoreSessionButton" Style="{StaticResource SidebarActionStyle}" Click="OnRestoreSessionClick" Visibility="Collapsed"
+                        Background="{StaticResource TrackBrush}" BorderBrush="{StaticResource StudioBorderBrush}" BorderThickness="1" Padding="12,8">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="30" Height="30" CornerRadius="8" Background="{StaticResource AccentBrush}">
+                            <FontIcon Glyph="&#xE81C;" FontSize="13" Foreground="{StaticResource OnAccentBrush}" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                            <TextBlock FontSize="13" FontWeight="SemiBold" Text="{x:Bind L.T('W6RestoreSession', L.Language), Mode=OneWay}" />
+                            <TextBlock x:Name="RestoreSessionText" FontSize="11" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextSecondaryBrush}" />
+                        </StackPanel>
+                        <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
+                    </Grid>
+                </Button>
+                <!-- Волна 6: Среда девелопера, в которой откроется проект (тот же проект доступен во всех трёх) -->
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" Margin="2,0,0,0" Text="{x:Bind L.T('W6EnvCaption', L.Language), Mode=OneWay}" />
+                    <Border Grid.Column="1" Style="{StaticResource SegmentTrackStyle}" HorizontalAlignment="Left">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="EnvSiteRadio" GroupName="WelcomeEnv" Style="{StaticResource SegmentRadioStyle}" Tag="site" Checked="OnEnvironmentChecked" MinWidth="120"
+                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvSiteHint', L.Language), Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE707;" FontSize="12" /><TextBlock FontSize="12" Text="{x:Bind L.T('W6EnvSiteShort', L.Language), Mode=OneWay}" /></StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="EnvBuildingRadio" GroupName="WelcomeEnv" Style="{StaticResource SegmentRadioStyle}" Tag="building" Checked="OnEnvironmentChecked" MinWidth="120"
+                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvBuildingHint', L.Language), Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE9D9;" FontSize="12" /><TextBlock FontSize="12" Text="{x:Bind L.T('W6EnvBuildingShort', L.Language), Mode=OneWay}" /></StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="EnvInteriorsRadio" GroupName="WelcomeEnv" Style="{StaticResource SegmentRadioStyle}" Tag="interiors" Checked="OnEnvironmentChecked" MinWidth="120"
+                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvInteriorsHint', L.Language), Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE8A9;" FontSize="12" /><TextBlock FontSize="12" Text="{x:Bind L.T('W6EnvInteriorsShort', L.Language), Mode=OneWay}" /></StackPanel>
+                            </RadioButton>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                <TextBlock Style="{StaticResource SectionHeaderStyle}" Margin="2,2,0,4" Text="{x:Bind L.T('WelcomeTemplates', L.Language), Mode=OneWay}" />
+            </StackPanel>
             <Grid x:Name="TemplateGrid" Grid.Row="3" ColumnSpacing="14" RowSpacing="14">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition />
@@ -301,8 +346,14 @@
         <ContentControl x:Name="FocusSink" Width="0" Height="0" IsTabStop="True" TabIndex="-1" HorizontalAlignment="Left" VerticalAlignment="Top" />
 
         <!-- Область перетаскивания окна и кнопки «Свернуть / Закрыть» -->
-        <Border x:Name="DragArea" Grid.ColumnSpan="2" Height="40" VerticalAlignment="Top" Margin="0,0,92,0" Background="Transparent" />
-        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,10,0" Spacing="2">
+        <Border x:Name="DragArea" Grid.ColumnSpan="2" Height="40" VerticalAlignment="Top" Margin="0,0,128,0" Background="Transparent" />
+        <StackPanel x:Name="WindowButtons" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,10,0" Spacing="2">
+            <!-- Волна 6: «Свернуть меню» — компактная стеклянная капсула в углу экрана (сцена за ней видна), разворачивается обратно -->
+            <Button x:Name="CollapseMenuButton" Style="{StaticResource IconButtonStyle}" Click="OnCollapseMenuClick"
+                    AutomationProperties.Name="{x:Bind L.T('W6CollapseMenu', L.Language), Mode=OneWay}"
+                    ToolTipService.ToolTip="{x:Bind L.T('W6CollapseMenu', L.Language), Mode=OneWay}">
+                <FontIcon Glyph="&#xE73F;" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+            </Button>
             <Button Style="{StaticResource IconButtonStyle}" Click="OnMinimizeClick" ToolTipService.ToolTip="{x:Bind L.T('WindowMinimize', L.Language), Mode=OneWay}">
                 <FontIcon Glyph="&#xE921;" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
             </Button>
@@ -400,6 +451,32 @@
                             Click="OnOnboardingContinueClick" />
                 </StackPanel>
             </Grid>
+        </Grid>
+
+        <!-- ═══════════════ Волна 6: свёрнутое меню — стеклянная капсула в углу экрана ═══════════════ -->
+        <Grid x:Name="CapsuleLayer" Grid.ColumnSpan="2" Visibility="Collapsed" Padding="12,0,10,0" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <views:AppLogo Width="28" Height="28" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="0">
+                <TextBlock FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="Architect Studio Pro" />
+                <TextBlock FontSize="10.5" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" Text="{x:Bind L.T('W6CapsuleHint', L.Language), Mode=OneWay}" />
+            </StackPanel>
+            <Button x:Name="ExpandMenuButton" Grid.Column="2" Style="{StaticResource AccentButtonStyle}" CornerRadius="14" Height="28" Padding="12,0" FontSize="12"
+                    VerticalAlignment="Center" Click="OnExpandMenuClick">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE740;" FontSize="11" />
+                    <TextBlock Text="{x:Bind L.T('W6ExpandMenu', L.Language), Mode=OneWay}" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="3" Style="{StaticResource IconButtonStyle}" VerticalAlignment="Center" Click="OnMinimizeClick"
+                    ToolTipService.ToolTip="{x:Bind L.T('WindowMinimize', L.Language), Mode=OneWay}">
+                <FontIcon Glyph="&#xE921;" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
+            </Button>
         </Grid>
     </Grid>
 </Window>
