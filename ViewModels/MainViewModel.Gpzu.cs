@@ -47,8 +47,7 @@ public sealed partial class MainViewModel
         if (deepRead && !IsSelfTestRun && !IsDebugAutomation)
             _ = Task.Run(async () =>
             {
-                var text = DeepDocumentConstraintService.Read(path);
-                await RunOnUiAsync(() => ExtractConstraintsAsync(text, DefaultConstraintModelKey, openDialog: true));
+                await RunOnUiAsync(() => AnalyzeDocumentAsync(path, DefaultConstraintModelKey, openDialog: true));
             });
         if (GpzuTopo is { } topo && doc.Boundary.Count > 2)
         {

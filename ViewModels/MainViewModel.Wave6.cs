@@ -65,7 +65,9 @@ public sealed partial class MainViewModel
     // ═════════════════════════════ Среды девелопера ═════════════════════════════
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsEnvSite), nameof(IsEnvBuilding), nameof(IsEnvInteriors), nameof(IsSiteEditing), nameof(EnvironmentTitle), nameof(EnvironmentGlyph))]
+    [NotifyPropertyChangedFor(nameof(IsEnvSite), nameof(IsEnvBuilding), nameof(IsEnvInteriors), nameof(IsSiteEditing), nameof(EnvironmentTitle), nameof(EnvironmentGlyph),
+        nameof(IsSiteOrBuilding), nameof(IsBuildingOrLayouts), nameof(IsInspectorDockVisible), nameof(IsEnvironmentPanelVisible), nameof(IsStructuralModeAvailable),
+        nameof(IsArchitectBuildingUi), nameof(IsAnalysisBuildingUi), nameof(IsRebarBuildingUi), nameof(IsQuantityBuildingUi), nameof(IsMultiPlanVisible))]
     public partial DeveloperEnvironment ActiveEnvironment { get; set; } = DeveloperEnvironment.Building;
 
     partial void OnActiveEnvironmentChanged(DeveloperEnvironment value)
@@ -75,6 +77,7 @@ public sealed partial class MainViewModel
         if (!d.StructuralTools && IsStructuralMode) IsStructuralMode = false;
         if (value == DeveloperEnvironment.Site && IsSectionBoxEnabled) IsSectionBoxEnabled = false;
         if (!d.SiteEditing) SelectedSiteVertex = null;
+        if (value != DeveloperEnvironment.Interiors) IsMultiPlanOpen = false;
         IsEnvironmentPanelOpen = true;
         // Автотест и сценарии съёмки (AIA_DEBUG_*) настройки пользователя не меняют.
         string? stored = value == DeveloperEnvironment.Building ? null : WorkspaceEnvironmentService.Code(value);
@@ -98,8 +101,11 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     public partial bool IsEnvironmentPanelOpen { get; set; } = true;
 
-    /// <summary>Панель Среды (справа, слева от инспектора): не вместе с панелью «Конструкции», секущим боксом и прогулкой.</summary>
-    public bool IsEnvironmentPanelVisible => IsEnvironmentPanelOpen && !IsStructuralMode && !IsWalkthrough && !IsSectionPanelVisible;
+    /// <summary>
+    /// Правый док раздела «1. Генплан и ГПЗУ» или «3. Планировки и ИОС» — на месте инспектора (единственный правый док окна);
+    /// в разделе «2. Архитектура и КР» его место занимает инспектор или панель «Конструкции».
+    /// </summary>
+    public bool IsEnvironmentPanelVisible => ActiveEnvironment != DeveloperEnvironment.Building && !IsWalkthrough;
 
     [RelayCommand]
     private void ToggleEnvironmentPanel() => IsEnvironmentPanelOpen = !IsEnvironmentPanelOpen;
@@ -112,7 +118,7 @@ public sealed partial class MainViewModel
     public bool HasSitePlan => Scene.SitePlan is not null;
 
     /// <summary>Ручки поворотных точек и вершин зон во вьюпорте — в Среде 1 при участке.</summary>
-    public bool IsSiteEditing => ActiveEnvironment == DeveloperEnvironment.Site && Scene.SitePlan is not null && !IsWalkthrough;
+    public bool IsSiteEditing => ActiveEnvironment == DeveloperEnvironment.Site && Scene.SitePlan is not null && !IsWalkthrough && IsSiteVertexEditEnabled;
 
     [ObservableProperty]
     public partial SiteVertexRef? SelectedSiteVertex { get; set; }
@@ -283,7 +289,7 @@ public sealed partial class MainViewModel
     public string DefaultConstraintModelKey => ConstraintModelChoices[0].Key;
 
     /// <summary>Модель для чтения «НО» по ключу выбора (null — только ядро).</summary>
-    public ConstraintModel? ResolveConstraintModel(string key)
+    public ConstraintModel? ResolveConstraintModel(string key, string effort = "low")
     {
         switch (key)
         {
@@ -297,10 +303,10 @@ public sealed partial class MainViewModel
                         Model = spec.Alias,
                         System = system,
                         Messages = [UnifiedMessage.User(user)],
-                        MaxTokens = 4000,
+                        MaxTokens = effort == "high" ? 12000 : 4000,
                         Temperature = 0.1,
                         Purpose = "ограничения документа",
-                        ReasoningEffort = "low"
+                        ReasoningEffort = effort
                     }, ct).ConfigureAwait(false);
                     return r.Text;
                 });
@@ -318,35 +324,15 @@ public sealed partial class MainViewModel
     /// </summary>
     public async Task<ConstraintExtraction?> ExtractConstraintsAsync(string path, string? modelKey = null, bool openDialog = true, CancellationToken ct = default)
     {
-        IsBusy = true;
-        BusyText = Loc.Get("W6ReadingDocument");
-        try
-        {
-            var doc = await Task.Run(() => DeepDocumentConstraintService.Read(path), ct);
-            return await ExtractConstraintsAsync(doc, modelKey, openDialog, ct);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException or System.Xml.XmlException)
-        {
-            ShowError(Loc.Get("W6ConstraintsTitle"), ex.Message, $"AIA-W6-READ-{ex.HResult:X8}", ex.ToString());
-            return null;
-        }
-        finally
-        {
-            IsBusy = false;
-            BusyText = string.Empty;
-        }
+        // Волна 7: файл — 4-этапным анализом (структура, разделы, сноски, таблицы, графика, сверка, нормативы).
+        var report = await AnalyzeDocumentAsync(path, modelKey, openDialog, ct);
+        return report is null ? null : LastConstraintExtraction;
     }
 
     public async Task<ConstraintExtraction> ExtractConstraintsAsync(DocumentText doc, string? modelKey, bool openDialog = true, CancellationToken ct = default)
     {
-        ConstraintSource = doc;
-        var model = ResolveConstraintModel(modelKey ?? DefaultConstraintModelKey);
-        var result = await DeepDocumentConstraintService.ExtractAsync(doc, model, ct);
-        LastConstraintExtraction = result;
-        ChatMessages.Add(ChatMessageModel.Assistant(Loc.Format("W6ReadDone", doc.FileName, doc.Pages.Count, result.Items.Count) + "\n" + string.Join("\n", result.Log),
-            model?.Title ?? Loc.Get("W5Engine")));
-        if (openDialog) ConstraintDialogRequested?.Invoke(this, ConstraintDialogMode.Document);
-        return result;
+        await AnalyzeDocumentTextAsync(doc, modelKey, openDialog, ct);
+        return LastConstraintExtraction!;
     }
 
     /// <summary>Поиск действующих ограничений по запросу (сеть + база нормативов ядра + синтез моделью) — в окно подтверждения.</summary>

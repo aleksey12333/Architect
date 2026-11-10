@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Window
     x:Class="AIArchitectStudio.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -100,11 +100,17 @@
                        Text="{x:Bind L.T('EmptySceneHint', L.Language), Mode=OneWay}" />
         </StackPanel>
 
-        <!-- ═══════════════ Палитра «Добавить элемент» (ручное моделирование на активном этаже) и библиотека ГОСТ/СП ═══════════════ -->
+        <!-- ═══════════════ Левая палитра раздела: 1 — инструменты участка, 2 — объёмное моделирование и КР, 3 — планировки и ИОС ═══════════════ -->
         <Border x:Name="ToolPalette" Style="{StaticResource IslandStyle}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14,62,0,0"
                 Padding="4" CornerRadius="14" UseLayoutRounding="True"
                 Visibility="{x:Bind local:XamlHelpers.VisNone(ViewModel.IsSolarEnabled, ViewModel.IsWebBridgeOpen, ViewModel.IsWalkthrough), Mode=OneWay}">
-            <StackPanel x:Name="AddElementButton" Spacing="2">
+            <Grid>
+            <!-- Раздел 1: Генплан и ГПЗУ (кнопки строятся в MainWindow.Wave7.cs) -->
+            <StackPanel x:Name="SitePalette" Spacing="2" Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsEnvSite), Mode=OneWay}" />
+            <!-- Раздел 3: Планировки и ИОС (кнопки строятся в MainWindow.Wave7.cs) -->
+            <StackPanel x:Name="LayoutPalette" Spacing="2" Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsEnvInteriors), Mode=OneWay}" />
+            <!-- Раздел 2: Архитектура и КР -->
+            <StackPanel x:Name="AddElementButton" Spacing="2" Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsEnvBuilding), Mode=OneWay}">
                 <FontIcon Glyph="&#xE710;" FontSize="11" Margin="0,4,0,4" Foreground="{StaticResource TextSecondaryBrush}"
                           ToolTipService.ToolTip="{x:Bind L.T('AddElementTip', L.Language), Mode=OneWay}" />
                 <Button Tag="Column" Click="OnAddElementClick" Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="{x:Bind L.T('AddColumn', L.Language), Mode=OneWay}">
@@ -141,8 +147,28 @@
                         ToolTipService.ToolTip="{x:Bind L.T('W2DimsTip', L.Language), Mode=OneWay}">
                     <FontIcon Glyph="&#xE740;" FontSize="14" />
                 </Button>
+                <Border Height="1" Margin="6,2" Background="{StaticResource StudioBorderBrush}" />
+                <Button Command="{x:Bind ViewModel.OpenPhotoStudioCommand}" Style="{StaticResource IconButtonStyle}"
+                        ToolTipService.ToolTip="{x:Bind L.T('W7ToolPhoto', L.Language), Mode=OneWay}">
+                    <FontIcon Glyph="&#xE722;" FontSize="14" />
+                </Button>
+                <ToggleButton Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsStructuralMode, Mode=TwoWay}"
+                              Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsStructuralModeAvailable), Mode=OneWay}"
+                              ToolTipService.ToolTip="{x:Bind L.T('W7ToolStructural', L.Language), Mode=OneWay}">
+                    <FontIcon Glyph="&#xE9D9;" FontSize="14" />
+                </ToggleButton>
+                <Button Command="{x:Bind ViewModel.RunSchemeAuditCommand}" Style="{StaticResource IconButtonStyle}"
+                        Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsStructuralModeAvailable), Mode=OneWay}"
+                        ToolTipService.ToolTip="{x:Bind L.T('W7ToolAudit', L.Language), Mode=OneWay}">
+                    <FontIcon Glyph="&#xE9F9;" FontSize="14" />
+                </Button>
             </StackPanel>
+            </Grid>
         </Border>
+
+        <!-- ═══════════════ Раздел 3: мульти-план пакетов этажей / подвал и вертикальная проверка (содержимое — MainWindow.Wave7.cs) ═══════════════ -->
+        <Border x:Name="FloorPlanHost" Margin="66,62,368,118" CornerRadius="14" BorderThickness="1" UseLayoutRounding="True"
+                Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsMultiPlanVisible), Mode=OneWay}" />
 
         <!-- ═══════════════ Верхний парящий бар ═══════════════ -->
         <Border x:Name="TopBar" Grid.ColumnSpan="2" Style="{StaticResource IslandStyle}" Height="42" Margin="14,10,14,0" VerticalAlignment="Top" Padding="6,0">
@@ -242,7 +268,7 @@
                     </Button>
                     <!-- Модуль «Ведомость объёмов и сталей» -->
                     <Button x:Name="QuantitiesButton" Style="{StaticResource IconButtonStyle}" Click="OnQuantitiesClick"
-                            Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsQuantityModule), Mode=OneWay}"
+                            Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsQuantityBuildingUi), Mode=OneWay}"
                             ToolTipService.ToolTip="{x:Bind L.T('QtyButtonTip', L.Language), Mode=OneWay}">
                         <FontIcon Glyph="&#xE9F9;" FontSize="14" />
                     </Button>
@@ -250,139 +276,110 @@
 
                 <!-- По центру: Segmented Control вида + инструменты отображения -->
                 <StackPanel x:Name="TopCenterTools" Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                    <!-- Волна 6: три Среды девелопера над одним проектом (1 клик из любой Среды) -->
+                    <!-- Волна 7: три раздела над одним проектом — 1. Генплан и ГПЗУ · 2. Архитектура и КР · 3. Планировки и ИОС -->
                     <Border x:Name="EnvironmentSegment" Style="{StaticResource SegmentTrackStyle}" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
-                            <RadioButton GroupName="DevEnvironment" Style="{StaticResource SegmentRadioStyle}" MinWidth="34"
+                            <RadioButton GroupName="DevEnvironment" Style="{StaticResource SegmentRadioStyle}" Padding="8,0" FontSize="11"
                                          IsChecked="{x:Bind ViewModel.IsEnvSite, Mode=TwoWay}"
-                                         AutomationProperties.Name="{x:Bind L.T('W6EnvSite', L.Language), Mode=OneWay}"
-                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvSiteHint', L.Language), Mode=OneWay}">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <FontIcon Glyph="&#xE707;" FontSize="12" />
-                                    <TextBlock Text="1" FontSize="11" FontFamily="Cascadia Mono, Consolas" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </RadioButton>
-                            <RadioButton GroupName="DevEnvironment" Style="{StaticResource SegmentRadioStyle}" MinWidth="34"
+                                         Content="{x:Bind L.T('W6EnvSite', L.Language), Mode=OneWay}"
+                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvSiteHint', L.Language), Mode=OneWay}" />
+                            <RadioButton GroupName="DevEnvironment" Style="{StaticResource SegmentRadioStyle}" Padding="8,0" FontSize="11"
                                          IsChecked="{x:Bind ViewModel.IsEnvBuilding, Mode=TwoWay}"
-                                         AutomationProperties.Name="{x:Bind L.T('W6EnvBuilding', L.Language), Mode=OneWay}"
-                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvBuildingHint', L.Language), Mode=OneWay}">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <FontIcon Glyph="&#xE9D9;" FontSize="12" />
-                                    <TextBlock Text="2" FontSize="11" FontFamily="Cascadia Mono, Consolas" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </RadioButton>
-                            <RadioButton GroupName="DevEnvironment" Style="{StaticResource SegmentRadioStyle}" MinWidth="34"
+                                         Content="{x:Bind L.T('W6EnvBuilding', L.Language), Mode=OneWay}"
+                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvBuildingHint', L.Language), Mode=OneWay}" />
+                            <RadioButton GroupName="DevEnvironment" Style="{StaticResource SegmentRadioStyle}" Padding="8,0" FontSize="11"
                                          IsChecked="{x:Bind ViewModel.IsEnvInteriors, Mode=TwoWay}"
-                                         AutomationProperties.Name="{x:Bind L.T('W6EnvInteriors', L.Language), Mode=OneWay}"
-                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvInteriorsHint', L.Language), Mode=OneWay}">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <FontIcon Glyph="&#xE8A9;" FontSize="12" />
-                                    <TextBlock Text="3" FontSize="11" FontFamily="Cascadia Mono, Consolas" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </RadioButton>
+                                         Content="{x:Bind L.T('W6EnvInteriors', L.Language), Mode=OneWay}"
+                                         ToolTipService.ToolTip="{x:Bind L.T('W6EnvInteriorsHint', L.Language), Mode=OneWay}" />
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource SegmentTrackStyle}" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
-                            <RadioButton GroupName="ViewMode" Style="{StaticResource SegmentRadioStyle}" MinWidth="52"
+                            <RadioButton GroupName="ViewMode" Style="{StaticResource SegmentRadioStyle}" MinWidth="44"
                                          IsChecked="{x:Bind ViewModel.IsPerspectiveMode, Mode=TwoWay}"
                                          Content="{x:Bind L.T('View3D', L.Language), Mode=OneWay}"
                                          ToolTipService.ToolTip="{x:Bind L.T('View3DTitle', L.Language), Mode=OneWay}" />
-                            <RadioButton GroupName="ViewMode" Style="{StaticResource SegmentRadioStyle}" MinWidth="52"
+                            <RadioButton GroupName="ViewMode" Style="{StaticResource SegmentRadioStyle}" MinWidth="44"
                                          IsChecked="{x:Bind ViewModel.IsPlanMode, Mode=TwoWay}"
                                          Content="{x:Bind L.T('ViewPlan', L.Language), Mode=OneWay}"
                                          ToolTipService.ToolTip="{x:Bind L.T('ViewPlanTitle', L.Language), Mode=OneWay}" />
-                            <RadioButton GroupName="ViewMode" Style="{StaticResource SegmentRadioStyle}" MinWidth="52"
+                            <RadioButton GroupName="ViewMode" Style="{StaticResource SegmentRadioStyle}" MinWidth="44"
                                          IsChecked="{x:Bind ViewModel.IsSectionMode, Mode=TwoWay}"
                                          Content="{x:Bind L.T('ViewSection', L.Language), Mode=OneWay}"
                                          ToolTipService.ToolTip="{x:Bind L.T('ViewSectionTitle', L.Language), Mode=OneWay}" />
-                            <!-- Режим «Конструкции (КЖ / КМ)»: аналитический оверлей и панель конструктора -->
-                            <RadioButton x:Name="StructuralSegment" GroupName="ViewMode" Style="{StaticResource SegmentRadioStyle}" MinWidth="52"
-                                         Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsStructuralModeAvailable), Mode=OneWay}"
+                            <!-- Режим «Конструкции (КЖ / КМ)» — только в разделе «2. Архитектура и КР» -->
+                            <RadioButton x:Name="StructuralSegment" GroupName="ViewMode" Style="{StaticResource SegmentRadioStyle}" MinWidth="44"
+                                         Visibility="Collapsed"
                                          IsChecked="{x:Bind ViewModel.IsStructuralSegment, Mode=TwoWay}"
                                          Content="{x:Bind L.T('W2StructuralMode', L.Language), Mode=OneWay}"
                                          ToolTipService.ToolTip="{x:Bind L.T('W2StructuralModeTip', L.Language), Mode=OneWay}" />
                         </StackPanel>
                     </Border>
-                    <!-- Инструменты архитектора и инженера скрываются профилем «Эскизы и идеи» / «Архитектура» -->
-                    <ToggleButton Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.ShowGridAxes, Mode=TwoWay}"
-                                  Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsArchitectUi), Mode=OneWay}"
-                                  ToolTipService.ToolTip="{x:Bind L.T('Axes', L.Language), Mode=OneWay}">
-                        <FontIcon Glyph="&#xE80A;" FontSize="14" />
-                    </ToggleButton>
-                    <ToggleButton Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsWireframe, Mode=TwoWay}"
-                                  Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsArchitectUi), Mode=OneWay}"
-                                  ToolTipService.ToolTip="{x:Bind L.T('Wireframe', L.Language), Mode=OneWay}">
-                        <FontIcon Glyph="&#xF158;" FontSize="14" />
-                    </ToggleButton>
+                    <!-- Раздел 2: второстепенные переключатели отображения — в одном меню «Отображение» (оси, каркас, привязки, макет) -->
+                    <Button x:Name="DisplayMenuButton" Style="{StaticResource IconButtonStyle}"
+                            Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsEnvBuilding), Mode=OneWay}"
+                            ToolTipService.ToolTip="{x:Bind L.T('W7Display', L.Language), Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="3">
+                            <FontIcon Glyph="&#xE890;" FontSize="14" />
+                            <FontIcon Glyph="&#xE70D;" FontSize="8" />
+                        </StackPanel>
+                        <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                <ToggleMenuFlyoutItem IsChecked="{x:Bind ViewModel.ShowGridAxes, Mode=TwoWay}" Text="{x:Bind L.T('Axes', L.Language), Mode=OneWay}"
+                                                      Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsArchitectBuildingUi), Mode=OneWay}">
+                                    <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></ToggleMenuFlyoutItem.Icon>
+                                </ToggleMenuFlyoutItem>
+                                <ToggleMenuFlyoutItem IsChecked="{x:Bind ViewModel.IsWireframe, Mode=TwoWay}" Text="{x:Bind L.T('Wireframe', L.Language), Mode=OneWay}"
+                                                      Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsArchitectBuildingUi), Mode=OneWay}">
+                                    <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></ToggleMenuFlyoutItem.Icon>
+                                </ToggleMenuFlyoutItem>
+                                <ToggleMenuFlyoutItem IsChecked="{x:Bind ViewModel.IsOSnapEnabled, Mode=TwoWay}" Text="{x:Bind L.T('OSnapFull', L.Language), Mode=OneWay}"
+                                                      Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsArchitectBuildingUi), Mode=OneWay}">
+                                    <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE707;" /></ToggleMenuFlyoutItem.Icon>
+                                </ToggleMenuFlyoutItem>
+                                <MenuFlyoutSeparator />
+                                <ToggleMenuFlyoutItem IsChecked="{x:Bind ViewModel.IsStressMapEnabled, Mode=TwoWay}" Text="{x:Bind L.T('StressMap', L.Language), Mode=OneWay}"
+                                                      Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsAnalysisBuildingUi), Mode=OneWay}">
+                                    <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D9;" /></ToggleMenuFlyoutItem.Icon>
+                                </ToggleMenuFlyoutItem>
+                                <ToggleMenuFlyoutItem IsChecked="{x:Bind ViewModel.IsRebarView, Mode=TwoWay}" Text="{x:Bind L.T('RebarTip', L.Language), Mode=OneWay}"
+                                                      Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsRebarBuildingUi), Mode=OneWay}">
+                                    <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A9;" /></ToggleMenuFlyoutItem.Icon>
+                                </ToggleMenuFlyoutItem>
+                                <ToggleMenuFlyoutItem IsChecked="{x:Bind ViewModel.IsClayMode, Mode=TwoWay}" Text="{x:Bind L.T('ClayFull', L.Language), Mode=OneWay}">
+                                    <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE7B8;" /></ToggleMenuFlyoutItem.Icon>
+                                </ToggleMenuFlyoutItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
                     <ToggleButton Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsSectionBoxEnabled, Mode=TwoWay}"
-                                  Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsArchitectUi), Mode=OneWay}"
+                                  Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsArchitectBuildingUi), Mode=OneWay}"
                                   ToolTipService.ToolTip="{x:Bind L.T('SectionBox', L.Language), Mode=OneWay}">
                         <FontIcon Glyph="&#xE7A8;" FontSize="14" />
-                    </ToggleButton>
-                    <!-- Модули «КЭ-анализ и карта напряжений» и «Визуализация 3D-армирования (КЖ)» -->
-                    <ToggleButton x:Name="StressMapToggle" Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsStressMapEnabled, Mode=TwoWay}"
-                                  Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsAnalysisModule), Mode=OneWay}"
-                                  ToolTipService.ToolTip="{x:Bind L.T('StressMap', L.Language), Mode=OneWay}">
-                        <FontIcon Glyph="&#xE9D9;" FontSize="14" />
-                    </ToggleButton>
-                    <ToggleButton x:Name="RebarToggle" Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsRebarView, Mode=TwoWay}"
-                                  Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsRebarModule), Mode=OneWay}"
-                                  ToolTipService.ToolTip="{x:Bind L.T('RebarTip', L.Language), Mode=OneWay}">
-                        <FontIcon Glyph="&#xE8A9;" FontSize="14" />
                     </ToggleButton>
                     <ToggleButton Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsUnderlayVisible, Mode=TwoWay}"
                                   Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.HasUnderlay), Mode=OneWay}"
                                   ToolTipService.ToolTip="{x:Bind L.T('Underlay', L.Language), Mode=OneWay}">
                         <FontIcon Glyph="&#xE70F;" FontSize="14" />
                     </ToggleButton>
-                    <Border Width="1" Height="16" Margin="4,0" Background="{StaticResource StudioBorderBrush}" />
-                    <!-- Тактильное моделирование: магнитные привязки, инсоляция, прогулка от первого лица -->
-                    <ToggleButton x:Name="OSnapToggle" Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsOSnapEnabled, Mode=TwoWay}"
-                                  Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsArchitectUi), Mode=OneWay}"
-                                  ToolTipService.ToolTip="{x:Bind L.T('OSnapFull', L.Language), Mode=OneWay}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE707;" FontSize="13" />
-                            <TextBlock Text="OSnap" FontSize="12" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ToggleButton>
-                    <!-- Архитектурная подача: 3D-рулетка (M) и белый макет -->
+                    <!-- Общие для всех разделов: рулетка, вписать; макет и инсоляция — по разделу -->
                     <ToggleButton x:Name="MeasureToggle" Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsMeasureMode, Mode=TwoWay}"
                                   ToolTipService.ToolTip="{x:Bind L.T('MeasureFull', L.Language), Mode=OneWay}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xED5E;" FontSize="13" />
-                            <TextBlock Text="{x:Bind L.T('Measure', L.Language), Mode=OneWay}" FontSize="12" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ToggleButton>
-                    <ToggleButton x:Name="ClayToggle" Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsClayMode, Mode=TwoWay}"
-                                  ToolTipService.ToolTip="{x:Bind L.T('ClayFull', L.Language), Mode=OneWay}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE7B8;" FontSize="13" />
-                            <TextBlock Text="{x:Bind L.T('Clay', L.Language), Mode=OneWay}" FontSize="12" VerticalAlignment="Center" />
-                        </StackPanel>
+                        <FontIcon Glyph="&#xED5E;" FontSize="14" />
                     </ToggleButton>
                     <ToggleButton x:Name="SolarToggle" Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsSolarEnabled, Mode=TwoWay}"
-                                  Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsSolarUi), Mode=OneWay}"
+                                  Visibility="{x:Bind local:XamlHelpers.VisAll(ViewModel.IsSolarUi, ViewModel.IsSiteOrBuilding), Mode=OneWay}"
                                   ToolTipService.ToolTip="{x:Bind L.T('Solar', L.Language), Mode=OneWay}">
                         <FontIcon Glyph="&#xE706;" FontSize="14" />
                     </ToggleButton>
                     <ToggleButton x:Name="WalkToggle" Style="{StaticResource IconToggleStyle}" IsChecked="{x:Bind ViewModel.IsWalkthrough, Mode=TwoWay}"
+                                  Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsBuildingOrLayouts), Mode=OneWay}"
                                   ToolTipService.ToolTip="{x:Bind L.T('WalkthroughFull', L.Language), Mode=OneWay}">
-                        <!-- Только глиф: место в баре занимает сегмент «Конструкции»; подпись — в подсказке -->
                         <FontIcon Glyph="&#xE805;" FontSize="14" />
                     </ToggleButton>
                     <Button Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.ZoomToFitCommand}"
                             ToolTipService.ToolTip="{x:Bind L.T('CameraFit', L.Language), Mode=OneWay}">
                         <FontIcon Glyph="&#xE9A6;" FontSize="14" />
-                    </Button>
-                    <Border Width="1" Height="16" Margin="4,0" Background="{StaticResource StudioBorderBrush}" />
-                    <Button Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.UndoCommand}"
-                            ToolTipService.ToolTip="{x:Bind L.T('Undo', L.Language), Mode=OneWay}">
-                        <FontIcon Glyph="&#xE7A7;" FontSize="14" />
-                    </Button>
-                    <Button Style="{StaticResource IconButtonStyle}" Command="{x:Bind ViewModel.RedoCommand}"
-                            ToolTipService.ToolTip="{x:Bind L.T('Redo', L.Language), Mode=OneWay}">
-                        <FontIcon Glyph="&#xE7A6;" FontSize="14" />
                     </Button>
                 </StackPanel>
 
@@ -390,6 +387,7 @@
                 <StackPanel x:Name="TopRightTools" Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Right">
                     <ComboBox Width="104" Height="30" FontSize="12" CornerRadius="8" BorderThickness="0" VerticalAlignment="Center" Margin="0,0,2,0"
                               Background="{StaticResource TrackBrush}"
+                              Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsBuildingOrLayouts), Mode=OneWay}"
                               ItemsSource="{x:Bind ViewModel.Levels}"
                               SelectedItem="{x:Bind ViewModel.SelectedLevel, Mode=TwoWay}"
                               DisplayMemberPath="Title"
@@ -486,7 +484,7 @@
 
         <!-- ═══════════════ Парящая панель «Секущий бокс» (Section Box) ═══════════════ -->
         <!-- ═══════════════ Панель режима «Конструкции (КЖ / КМ)» (содержимое строится в MainWindow.Wave2.cs) ═══════════════ -->
-        <Border x:Name="StructuralPanel" Style="{StaticResource IslandStyle}" Width="300" Margin="0,62,328,16" Padding="12,10,8,10"
+        <Border x:Name="StructuralPanel" Style="{StaticResource IslandStyle}" Width="340" Margin="0,62,14,14" Padding="12,10,8,10"
                 HorizontalAlignment="Right" VerticalAlignment="Stretch" UseLayoutRounding="True"
                 Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsStructuralMode), Mode=OneWay}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
@@ -494,17 +492,24 @@
             </ScrollViewer>
         </Border>
 
-        <!-- ═══════════════ Волна 6: панель активной Среды девелопера (содержимое — MainWindow.Wave6.cs) ═══════════════ -->
-        <Border x:Name="EnvironmentPanel" Width="312" Margin="0,62,328,52" Padding="12,10,8,10" CornerRadius="14" BorderThickness="1"
+        <!-- ═══════════════ Правый док разделов 1 и 3 (на месте инспектора, 340 px): вкладки и содержимое — MainWindow.Wave7.cs ═══════════════ -->
+        <Border x:Name="EnvironmentPanel" Width="340" Margin="0,62,14,14" Padding="8,8,4,10" CornerRadius="14" BorderThickness="1"
                 HorizontalAlignment="Right" VerticalAlignment="Stretch" UseLayoutRounding="True"
                 Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsEnvironmentPanelVisible), Mode=OneWay}">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
-                <StackPanel x:Name="EnvironmentPanelContent" Spacing="8" />
-            </ScrollViewer>
+            <Grid RowSpacing="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid x:Name="EnvironmentPanelTabs" Margin="0,0,4,0" />
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="4,0,8,0">
+                    <StackPanel x:Name="EnvironmentPanelContent" Spacing="8" />
+                </ScrollViewer>
+            </Grid>
         </Border>
 
-        <!-- Индикатор автосохранения «Прогресс сохранён (ЧЧ:ММ:СС)» -->
-        <Border x:Name="AutoSavePill" Margin="0,0,328,16" Padding="10,4,12,4" CornerRadius="11" BorderThickness="1"
+        <!-- Индикатор автосохранения -->
+        <Border x:Name="AutoSavePill" Margin="0,0,368,16" Padding="10,4,12,4" CornerRadius="11" BorderThickness="1"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False"
                 Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.HasAutoSaveStatus), Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -513,8 +518,8 @@
             </StackPanel>
         </Border>
 
-        <Border Style="{StaticResource IslandStyle}" Width="268" Margin="0,62,328,0" Padding="12,8,8,10"
-                HorizontalAlignment="Right" VerticalAlignment="Top"
+        <Border Style="{StaticResource IslandStyle}" Width="268" Margin="66,62,0,0" Padding="12,8,8,10"
+                HorizontalAlignment="Left" VerticalAlignment="Top"
                 Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsSectionPanelVisible), Mode=OneWay}">
             <StackPanel Spacing="2">
                 <Grid>
@@ -600,8 +605,9 @@
         </Border>
 
         <!-- ═══════════════ Правый парящий инспектор ═══════════════ -->
-        <Border x:Name="InspectorIsland" Style="{StaticResource IslandStyle}" Width="300" Margin="0,62,14,14"
+        <Border x:Name="InspectorIsland" Style="{StaticResource IslandStyle}" Width="340" Margin="0,62,14,14"
                 HorizontalAlignment="Right"
+                Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsInspectorDockVisible), Mode=OneWay}"
                 VerticalAlignment="{x:Bind local:XamlHelpers.CollapsedAlign(ViewModel.IsInspectorCollapsed), Mode=OneWay}">
             <Grid>
                 <Grid.RowDefinitions>
@@ -2069,7 +2075,7 @@
         </Grid>
 
         <!-- ═══════════════ Нижний док «Панель команд» BIM-Координатора (Apple Spotlight) ═══════════════ -->
-        <StackPanel x:Name="AiDock" UseLayoutRounding="True" MaxWidth="600" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Margin="14,0,14,16" Spacing="8">
+        <StackPanel x:Name="AiDock" UseLayoutRounding="True" MaxWidth="780" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Margin="14,0,14,16" Spacing="8">
 
             <!-- История чата и лог C#-солвера -->
             <Border Style="{StaticResource IslandStyle}" Padding="6" MaxHeight="320"
@@ -2393,8 +2399,9 @@
                 </Grid>
             </Border>
 
-            <!-- Чипы истории и веб-аккаунта (шаблоны сцен — в стартовом окне) -->
-            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+            <!-- Волна 7: чипы журнала, локального ядра, веб-аккаунта и вложений перенесены в меню ассистента (кнопка в капсуле ввода);
+                 элементы остаются как опоры их всплывающих окон -->
+            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" Visibility="Collapsed">
                 <Button Style="{StaticResource ChipButtonStyle}" Command="{x:Bind ViewModel.ToggleHistoryCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE81C;" FontSize="12" />
@@ -2439,7 +2446,7 @@
             </StackPanel>
 
             <!-- ═══ Совет КБ: режим «1 Агент | Совет КБ», состав бюро, ход мысли и аудит текущей сцены ═══ -->
-            <Border x:Name="CouncilBar" Style="{StaticResource IslandStyle}" HorizontalAlignment="Center" CornerRadius="14" Padding="4" UseLayoutRounding="True">
+            <Border x:Name="CouncilBar" Style="{StaticResource IslandStyle}" HorizontalAlignment="Center" CornerRadius="14" Padding="4" UseLayoutRounding="True" Visibility="Collapsed">
                 <StackPanel Orientation="Horizontal" Spacing="4">
                     <Border Style="{StaticResource SegmentTrackStyle}" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
@@ -2706,13 +2713,27 @@
                 <Grid ColumnSpacing="4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <Button Grid.Column="0" Style="{StaticResource IconButtonStyle}" VerticalAlignment="Center" CornerRadius="14"
+                    <!-- Режим работы ассистента: Проектировщик / Совет КБ / Агент; меню — состав бюро, протокол, аудит, журнал, вложения -->
+                    <Button x:Name="AssistantButton" Grid.Column="0" Style="{StaticResource IconButtonStyle}" VerticalAlignment="Center" CornerRadius="14" Padding="8,0,6,0"
+                            ToolTipService.ToolTip="{x:Bind L.T('W7AssistantTip', L.Language), Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <FontIcon Glyph="{x:Bind ViewModel.AssistantModeGlyph, Mode=OneWay}" FontSize="12" Foreground="{StaticResource AccentBrush}" />
+                            <TextBlock Text="{x:Bind ViewModel.AssistantModeTitle, Mode=OneWay}" FontSize="12" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}" />
+                            <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" />
+                        </StackPanel>
+                        <Button.Flyout>
+                            <MenuFlyout x:Name="AssistantFlyout" Placement="TopEdgeAlignedLeft" Opening="OnAssistantFlyoutOpening" />
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button Grid.Column="1" Style="{StaticResource IconButtonStyle}" VerticalAlignment="Center" CornerRadius="14"
                             ToolTipService.ToolTip="{x:Bind L.T('FromImage', L.Language), Mode=OneWay}">
                         <FontIcon Glyph="&#xEB9F;" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" />
                         <Button.Flyout>
@@ -2738,13 +2759,13 @@
                         </Button.Flyout>
                     </Button>
 
-                    <TextBox x:Name="ChatInputBox" Grid.Column="1" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="96" FontSize="14" FontWeight="Medium" UseLayoutRounding="True"
+                    <TextBox x:Name="ChatInputBox" Grid.Column="2" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="96" FontSize="14" FontWeight="Medium" UseLayoutRounding="True"
                              VerticalAlignment="Center"
                              PlaceholderText="{x:Bind ViewModel.ChatPlaceholder, Mode=OneWay}"
                              Text="{x:Bind ViewModel.ChatInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              PreviewKeyDown="OnChatInputPreviewKeyDown" />
 
-                    <Button x:Name="ModelButton" Grid.Column="2" Style="{StaticResource IconButtonStyle}" VerticalAlignment="Center" Padding="8,0,6,0"
+                    <Button x:Name="ModelButton" Grid.Column="3" Style="{StaticResource IconButtonStyle}" VerticalAlignment="Center" Padding="8,0,6,0"
                             ToolTipService.ToolTip="{x:Bind L.T('AiModel', L.Language), Mode=OneWay}">
                         <StackPanel Orientation="Horizontal" Spacing="5">
                             <FontIcon Glyph="{x:Bind ViewModel.SelectedAiModelGlyph, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
@@ -2757,7 +2778,7 @@
                         </Button.Flyout>
                     </Button>
 
-                    <Border Grid.Column="3" Style="{StaticResource SegmentTrackStyle}" VerticalAlignment="Center">
+                    <Border Grid.Column="4" Style="{StaticResource SegmentTrackStyle}" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <RadioButton GroupName="SceneMode" Style="{StaticResource SegmentRadioStyle}" Padding="9,0" FontSize="11" Height="24" UseLayoutRounding="True"
                                          IsChecked="{x:Bind ViewModel.IsNewSceneMode, Mode=TwoWay}"
@@ -2770,13 +2791,13 @@
                         </StackPanel>
                     </Border>
 
-                    <Button Grid.Column="4" Style="{StaticResource SendButtonStyle}" VerticalAlignment="Center" Margin="4,0,0,0"
+                    <Button Grid.Column="5" Style="{StaticResource SendButtonStyle}" VerticalAlignment="Center" Margin="4,0,0,0"
                             Command="{x:Bind ViewModel.SendChatCommand}"
                             Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsIdle), Mode=OneWay}"
                             ToolTipService.ToolTip="{x:Bind L.T('Send', L.Language), Mode=OneWay}">
                         <FontIcon Glyph="&#xE74A;" FontSize="13" />
                     </Button>
-                    <Button Grid.Column="4" Style="{StaticResource SendButtonStyle}" VerticalAlignment="Center" Margin="4,0,0,0"
+                    <Button Grid.Column="5" Style="{StaticResource SendButtonStyle}" VerticalAlignment="Center" Margin="4,0,0,0"
                             Command="{x:Bind ViewModel.CancelAiCommand}"
                             Visibility="{x:Bind local:XamlHelpers.Vis(ViewModel.IsBusy), Mode=OneWay}"
                             ToolTipService.ToolTip="{x:Bind L.T('CancelAi', L.Language), Mode=OneWay}">

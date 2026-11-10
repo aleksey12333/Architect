@@ -26,6 +26,7 @@ public sealed partial class MainWindow
     private Image? _photoRefImage;
     private TextBlock? _photoRefTitle;
     private bool _photoStudioOpen;
+    private Button? _photoTopButton;
 
     private void InitializeWave4()
     {
@@ -37,6 +38,7 @@ public sealed partial class MainWindow
         button.Click += (_, _) => ViewModel.RequestPhotoStudio(null);
         int index = TopLeftTools.Children.IndexOf(StartScreenButton);
         TopLeftTools.Children.Insert(index + 1, button);
+        _photoTopButton = button;
         L.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName != nameof(LocalizationService.Language)) return;
@@ -99,6 +101,7 @@ public sealed partial class MainWindow
         };
         InitializeWave5();
         InitializeWave6();
+        InitializeWave7();
 #if DEBUG
         InitializeWave4Debug();
 #endif

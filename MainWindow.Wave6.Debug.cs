@@ -11,8 +11,8 @@ namespace AIArchitectStudio;
 /// Только Debug — стенд Волны 6:
 /// <list type="bullet">
 /// <item>AIA_DEBUG_WAVE6TEST=папка — только проверки Волны 6 (wave6.txt), выход при EXIT=1.</item>
-/// <item>AIA_DEBUG_W6SHOT=site — Среда 1: демонстрационный участок как земля проекта (рельеф, грунт, сети), корпус ЖК + ТП + паркинг,
-/// точка № 2 перенесена мышиным путём, начальный экран свёрнут в капсулу; constraints[;файл] — окно подтверждения «НО»
+/// <item>AIA_DEBUG_W6SHOT=site — раздел 1: демонстрационный участок как земля проекта (рельеф, грунт, сети), корпус ЖК + ТП + паркинг,
+/// точка № 2 перенесена мышиным путём, начальный экран свёрнут в капсулу; constraints[;файл] — окно «Градостроительные ограничения и ЗОУИТ»
 /// документа (W6MODEL=core|sonnet|luna|opus|local); walk — проход по лестнице к двери второго этажа (упор в стену клетки, дверь открыта).</item>
 /// </list>
 /// </summary>
@@ -88,7 +88,7 @@ public sealed partial class MainWindow
         if (file is { Length: > 0 } && File.Exists(file)) await ViewModel.ExtractConstraintsAsync(file, key, openDialog: false);
         else
         {
-            // Документ с «НО» в тексте: эталонный ГПЗУ целиком + нестандартные условия в сносках.
+            // Документ с особыми условиями в тексте: эталонный ГПЗУ целиком + нестандартные условия в сносках.
             string kit = Path.Combine(AppContext.BaseDirectory, "DemoKit", "GPZU");
             string pdf = Directory.GetFiles(kit, "*.pdf").First();
             var text = await Task.Run(() => DeepDocumentConstraintService.Read(pdf));
@@ -124,7 +124,7 @@ public sealed partial class MainWindow
         elements.Add(E(ElementTypes.Wall, "Наружная стена 2 этажа", 0, 3.0, 6, 16, 2.8, 0.3));
         elements.Add(E(ElementTypes.Wall, "Торцевая стена", 8, 0, 0, 12, 5.8, 0.3, 90));
         elements.Add(E(ElementTypes.Slab, "Покрытие", 0, 5.8, 0, 16, 0.25, 12));
-        ViewModel.Scene.LoadScene(elements, [new BuildingGroup { Id = g, Name = "Дом прохода" }], recordUndo: false, clearHistory: true, axes: []);
+        ViewModel.Scene.LoadScene(elements, [new BuildingGroup { Id = g, Name = "Проектируемый корпус" }], recordUndo: false, clearHistory: true, axes: []);
         ViewModel.ActiveEnvironment = DeveloperEnvironment.Interiors;
         await Task.Delay(900);
         ViewModel.IsWalkthrough = true;

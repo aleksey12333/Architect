@@ -303,7 +303,7 @@ public sealed partial class SceneStateService
         bool groups = !Same(was.Groups, now.Groups, SameGroup);
         bool axes = !Same(was.Axes, now.Axes, SameAxis);
         bool dimensions = !Same(was.Dimensions, now.Dimensions, SameDimension);
-        bool site = !ReferenceEquals(was.Site, now.Site);
+        bool site = !ReferenceEquals(was.Site, now.Site) || !ReferenceEquals(was.Layout, now.Layout);
         return groups || axes || dimensions || site ? new DocumentStateChange(was, now, groups, axes, dimensions, site) : null;
     }
 
@@ -326,6 +326,9 @@ public sealed partial class SceneStateService
 
         /// <summary>Участок ГПЗУ (неизменяемый план — хранится ссылка).</summary>
         public Models.Gpzu.GpzuSitePlan? Site { get; init; }
+
+        /// <summary>Поэтажная планировка здания (неизменяемый план — хранится ссылка).</summary>
+        public Models.Layouts.BuildingLayoutPlan? Layout { get; init; }
     }
 
     private DocumentState CaptureDocumentState() => new()
@@ -333,7 +336,8 @@ public sealed partial class SceneStateService
         Groups = BuildingGroups.Select(g => (g, g.Clone())).ToArray(),
         Axes = GridAxes.Select(a => (a, a.Clone())).ToArray(),
         Dimensions = PinnedDimensions.Select(d => (d, d.Clone())).ToArray(),
-        Site = SitePlan
+        Site = SitePlan,
+        Layout = BuildingLayout
     };
 
     private static bool Same<T>((T Item, T Values)[] a, (T Item, T Values)[] b, Func<T, T, bool> sameValues) where T : class
@@ -357,7 +361,11 @@ public sealed partial class SceneStateService
     /// <summary>Возвращает постройки, оси или размеры к состоянию: значения копируются в те же объекты, порядок — как в снимке.</summary>
     private void RestoreDocumentState(DocumentState state, bool groups, bool axes, bool dimensions, bool site = false)
     {
-        if (site) SetSitePlan(state.Site);
+        if (site)
+        {
+            SetSitePlan(state.Site);
+            SetBuildingLayout(state.Layout);
+        }
         if (groups)
         {
             foreach (var (item, v) in state.Groups)

@@ -194,7 +194,7 @@ public static partial class CadSelfTestService
         };
         int depthC = scene.UndoDepth;
         var withRules = EditableSiteTerrainService.WithConstraints(site, confirmed);
-        scene.ApplySitePlan(withRules, "Ограничения «НО»: подтверждено 4");
+        scene.ApplySitePlan(withRules, "Регламент участка: утверждено 4");
         var ruled = GpzuComplianceVerifier.Verify(withRules, scene.Elements.ToList());
         var setbackFindings = ruled.Findings.Where(f => f.Code == "GPZU-CNS-SETBACK").ToList();
         double nearest = scene.Elements.Where(GpzuComplianceVerifier.IsBuildingPart).SelectMany(e => AIArchitectStudio.Rendering.ElementGeometryBuilder.WorldOutline(e))

@@ -109,6 +109,7 @@ public sealed partial class MainViewModel : ObservableObject
         InitializeWave2();
         InitializeWave3();
         InitializeWave6();
+        InitializeWave7();
     }
 
     /// <summary>Стартовая сцена (шаблон стартового окна или Пресет 1 без оболочки): без записи в Undo и без пометки «изменено».</summary>

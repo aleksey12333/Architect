@@ -20,7 +20,7 @@ public sealed record SiteMetrics(double GaussArea, double Perimeter, IReadOnlyLi
     GpzuComplianceReport Compliance, int Buildings, double MinRelief, double MaxRelief);
 
 /// <summary>Вид строения, вызываемого на участок (несколько строений на одном участке).</summary>
-public enum SiteStructureKind { ResidentialSection, Tower, TransformerSubstation, Parking }
+public enum SiteStructureKind { ResidentialSection, Tower, TransformerSubstation, Parking, HighRise }
 
 /// <summary>
 /// Волна 6 — участок ГПЗУ как живая изменяемая земля проекта. Каждая операция — чистая функция «план → новый план»
@@ -333,6 +333,7 @@ public static class EditableSiteTerrainService
         SiteStructureKind.Tower => "Жилая башня",
         SiteStructureKind.TransformerSubstation => "Трансформаторная подстанция",
         SiteStructureKind.Parking => "Паркинг",
+        SiteStructureKind.HighRise => "Жилой корпус 50 эт.",
         _ => "Корпус ЖК"
     };
 
@@ -384,6 +385,29 @@ public static class EditableSiteTerrainService
                     for (int j = 0; j <= 2; j++)
                         E(ElementTypes.Column, $"Паркинг: колонна {i + 1}/{(char)('А' + j)}", -15 + i * 7.5, 0, -8 + j * 8, 0.4, 2.8, 0.4, repeat: 2, levelHeight: 3.0);
                 E(ElementTypes.Slab, "Паркинг: перекрытие", 0, 2.8, 0, 30.6, 0.2, 16.6, repeat: 2, levelHeight: 3.0);
+                break;
+            }
+            case SiteStructureKind.HighRise:
+            {
+                // Жилой корпус 42 × 18 м: подвал −3,600, колонны по сетке 6 × 6 м (7 × 4 оси), сквозное ядро, перекрытия по этажам.
+                int n = floors > 0 ? floors : 50;
+                E(ElementTypes.Foundation, "Корпус: фундаментная плита", 0, -5.4, 0, 43.2, 1.8, 19.2);
+                E(ElementTypes.Wall, "Подвал: стена ось А", 0, -3.6, -9, 42.0, 3.6, 0.4);
+                E(ElementTypes.Wall, "Подвал: стена ось Г", 0, -3.6, 9, 42.0, 3.6, 0.4);
+                var ww = E(ElementTypes.Wall, "Подвал: стена ось 1", -21, -3.6, 0, 18.0, 3.6, 0.4);
+                ww.Rotation = [0, 90, 0];
+                var we = E(ElementTypes.Wall, "Подвал: стена ось 8", 21, -3.6, 0, 18.0, 3.6, 0.4);
+                we.Rotation = [0, 90, 0];
+                E(ElementTypes.Slab, "Корпус: перекрытие подвала", 0, -0.2, 0, 42.4, 0.2, 18.4);
+                for (int i = 0; i <= 7; i++)
+                    for (int j = 0; j <= 3; j++)
+                    {
+                        if (i is 3 or 4 && j is 1 or 2) continue;
+                        E(ElementTypes.Column, $"Корпус: колонна {i + 1}/{(char)('А' + j)}", -21 + i * 6, 0, -9 + j * 6, 0.6, 2.8, 0.6, repeat: n);
+                    }
+                E(ElementTypes.Core, "Корпус: ядро жёсткости", 0, -3.6, 0, 10.2, 3.6 + 3.0, 7.2, repeat: 1);
+                E(ElementTypes.Core, "Корпус: ядро жёсткости (типовые этажи)", 0, 3.0, 0, 10.2, 3.0, 7.2, repeat: n - 1);
+                E(ElementTypes.Slab, "Корпус: перекрытие", 0, 2.8, 0, 42.4, 0.2, 18.4, repeat: n);
                 break;
             }
             case SiteStructureKind.Tower:

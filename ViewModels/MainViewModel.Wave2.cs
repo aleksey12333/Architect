@@ -69,7 +69,8 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     public partial bool IsStructuralMode { get; set; }
 
-    public bool IsStructuralModeAvailable => IsArchitectUi || IsAnalysisModule;
+    /// <summary>Сегмент «Конструкции» — только в разделе «2. Архитектура и КР» (Волна 7: разделы не смешивают инструменты).</summary>
+    public bool IsStructuralModeAvailable => (IsArchitectUi || IsAnalysisModule) && ActiveEnvironment == DeveloperEnvironment.Building;
 
     /// <summary>Сегмент «Конструкции» рядом с «3D | План | Фасад» (одна группа переключателей).</summary>
     public bool IsStructuralSegment
@@ -89,6 +90,7 @@ public sealed partial class MainViewModel
         OnPropertyChanged(nameof(IsPerspectiveMode));
         OnPropertyChanged(nameof(IsStructuralSegment));
         OnPropertyChanged(nameof(IsSectionPanelVisible));
+        OnPropertyChanged(nameof(IsInspectorDockVisible));
         InvalidateStructural();
     }
 

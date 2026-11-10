@@ -279,16 +279,16 @@ public static class GpzuComplianceVerifier
             {
                 var tallest = building.OrderByDescending(e => e.TopY + Math.Max(0, e.RepeatLevels - 1) * e.LevelHeight).Take(3).Select(e => e.Id).ToList();
                 report.Findings.Add(maxTop <= hmax + 1e-6
-                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-HEIGHT", $"«НО»: {head}", string.Create(Ru, $"Высота здания {maxTop:0.00} м ≤ {hmax:0.00} м ({src})."), [], null)
-                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-HEIGHT", $"«НО»: превышена предельная высота — {head}",
+                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-HEIGHT", $"Регламент:{head}", string.Create(Ru, $"Высота здания {maxTop:0.00} м ≤ {hmax:0.00} м ({src})."), [], null)
+                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-HEIGHT", $"Регламент:превышена предельная высота — {head}",
                         string.Create(Ru, $"Высота здания {maxTop:0.00} м > {hmax:0.00} м на {maxTop - hmax:0.00} м ({src})."), tallest, null));
             }
             if (c.MaxHeightAbsM is { } habs && ground > 0)
             {
                 double top = ground + maxTop;
                 report.Findings.Add(top <= habs + 1e-6
-                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-HABS", $"«НО»: {head}", string.Create(Ru, $"Верх {top:0.00} м БС ≤ {habs:0.00} м БС ({src})."), [], null)
-                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-HABS", $"«НО»: превышена абсолютная отметка — {head}",
+                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-HABS", $"Регламент:{head}", string.Create(Ru, $"Верх {top:0.00} м БС ≤ {habs:0.00} м БС ({src})."), [], null)
+                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-HABS", $"Регламент:превышена абсолютная отметка — {head}",
                         string.Create(Ru, $"Верх {top:0.00} м БС > {habs:0.00} м БС ({src})."), [], null));
             }
             if (c.MinSetbackM is { } setback && setback > 0)
@@ -304,8 +304,8 @@ public static class GpzuComplianceVerifier
                         if (d < setback - 1e-6 && !bad.Contains(e.Id)) bad.Add(e.Id);
                     }
                 report.Findings.Add(bad.Count == 0
-                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-SETBACK", $"«НО»: {head}", string.Create(Ru, $"Наименьший отступ здания от границы {worst:0.00} м ≥ {setback:0.0#} м ({src})."), [], null)
-                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-SETBACK", $"«НО»: нарушен отступ от границы — {head}",
+                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-SETBACK", $"Регламент:{head}", string.Create(Ru, $"Наименьший отступ здания от границы {worst:0.00} м ≥ {setback:0.0#} м ({src})."), [], null)
+                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-SETBACK", $"Регламент:нарушен отступ от границы — {head}",
                         string.Create(Ru, $"Элементов ближе {setback:0.0#} м к границе: {bad.Count}, наименьший отступ {Math.Max(0, worst):0.00} м ({src})."), bad, null, at));
             }
             if (c.BufferRadiusM is { } buffer && buffer > 0 && c.Category is ConstraintCategory.ProtectionZone or ConstraintCategory.SanitaryZone or ConstraintCategory.NetworkRelocation)
@@ -313,7 +313,7 @@ public static class GpzuComplianceVerifier
                 var zones = plan.Zones.Where(z => z.Zone.IsNetwork && z.Lines.Count > 0 && (c.NetworkKind is null || z.Zone.Kind == c.NetworkKind)).ToList();
                 if (zones.Count == 0)
                 {
-                    report.Findings.Add(new GpzuFinding(GpzuSeverity.Info, "GPZU-CNS-BUFFER", $"«НО»: {head}",
+                    report.Findings.Add(new GpzuFinding(GpzuSeverity.Info, "GPZU-CNS-BUFFER", $"Регламент:{head}",
                         string.Create(Ru, $"Зона ± {buffer:0.0#} м: сети этого вида на участке не найдены в топосъёмке ({src})."), [], null));
                 }
                 else
@@ -328,20 +328,20 @@ public static class GpzuComplianceVerifier
                             if (d < buffer && !hit.Contains(e.Id)) hit.Add(e.Id);
                         }
                     report.Findings.Add(hit.Count == 0
-                        ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-BUFFER", $"«НО»: {head}", string.Create(Ru, $"До оси сети {min:0.0} м ≥ {buffer:0.0#} м ({src})."), [], null)
+                        ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-BUFFER", $"Регламент:{head}", string.Create(Ru, $"До оси сети {min:0.0} м ≥ {buffer:0.0#} м ({src})."), [], null)
                         : new GpzuFinding(c.RequiresNetworkRelocation ? GpzuSeverity.Warning : GpzuSeverity.Critical, "GPZU-CNS-BUFFER",
-                            $"«НО»: здание в зоне ± {buffer:0.0#} м — {head}",
+                            $"Регламент:здание в зоне ± {buffer:0.0#} м — {head}",
                             string.Create(Ru, $"Элементов в зоне: {hit.Count}, до оси {Math.Max(0, min):0.00} м ({src}).") +
                             (c.RequiresNetworkRelocation ? " Документ допускает размещение после выноса сети по ТУ." : string.Empty), hit, null));
                 }
             }
             else if (c.RequiresNetworkRelocation)
-                report.Findings.Add(new GpzuFinding(GpzuSeverity.Warning, "GPZU-CNS-RELOCATE", $"«НО»: {head}",
+                report.Findings.Add(new GpzuFinding(GpzuSeverity.Warning, "GPZU-CNS-RELOCATE", $"Регламент:{head}",
                     $"Требуется вынос (переустройство) сетей / технические условия балансодержателя до начала строительства ({src}).", [], null));
             if (c.MaxLivingAreaM2 is { } living)
                 report.Findings.Add(report.LivingAreaEstimate <= living
-                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-LIVING", $"«НО»: {head}", string.Create(Ru, $"Жильё (оценка) {report.LivingAreaEstimate:N0} ≤ {living:N0} м² ({src})."), [], null)
-                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-LIVING", $"«НО»: превышен лимит жилой площади — {head}",
+                    ? new GpzuFinding(GpzuSeverity.Ok, "GPZU-CNS-LIVING", $"Регламент:{head}", string.Create(Ru, $"Жильё (оценка) {report.LivingAreaEstimate:N0} ≤ {living:N0} м² ({src})."), [], null)
+                    : new GpzuFinding(GpzuSeverity.Critical, "GPZU-CNS-LIVING", $"Регламент:превышен лимит жилой площади — {head}",
                         string.Create(Ru, $"Жильё (оценка) {report.LivingAreaEstimate:N0} > {living:N0} м² ({src})."), [], null));
             if (c.MinParkingSpots is { } spots)
             {
@@ -349,11 +349,11 @@ public static class GpzuComplianceVerifier
                 double parkingArea = building.Where(e => e.Category == BimCategory.Slab && (e.Name?.Contains("Паркинг", StringComparison.OrdinalIgnoreCase) ?? false))
                     .Sum(e => Area(ElementGeometryBuilder.WorldOutline(e)) * Math.Max(1, e.RepeatLevels));
                 int estimate = (int)Math.Floor(parkingArea / 25.0);
-                report.Findings.Add(new GpzuFinding(estimate >= spots ? GpzuSeverity.Ok : GpzuSeverity.Warning, "GPZU-CNS-PARKING", $"«НО»: {head}",
+                report.Findings.Add(new GpzuFinding(estimate >= spots ? GpzuSeverity.Ok : GpzuSeverity.Warning, "GPZU-CNS-PARKING", $"Регламент:{head}",
                     string.Create(Ru, $"Машино-мест в модели (оценка по площади паркингов, 25 м²/место): {estimate} {(estimate >= spots ? "≥" : "<")} {spots} ({src})."), [], null));
             }
             if (c.Impact == ConstraintImpact.RequiresApproval && !c.HasNumbers && !c.RequiresNetworkRelocation)
-                report.Findings.Add(new GpzuFinding(GpzuSeverity.Warning, "GPZU-CNS-APPROVAL", $"«НО»: требуется согласование — {head}",
+                report.Findings.Add(new GpzuFinding(GpzuSeverity.Warning, "GPZU-CNS-APPROVAL", $"Регламент:требуется согласование — {head}",
                     (c.ImpactText.Length > 0 ? c.ImpactText + " " : string.Empty) + $"({src}).", [], null));
         }
     }

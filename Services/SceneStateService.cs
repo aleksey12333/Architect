@@ -441,6 +441,7 @@ public sealed partial class SceneStateService : ObservableObject, ITransactionDo
         {
             ResetLevels();
             SetSitePlan(null);
+            SetBuildingLayout(null);
         }
         BuildingGroups.Clear();
         foreach (var g in groups) BuildingGroups.Add(g);

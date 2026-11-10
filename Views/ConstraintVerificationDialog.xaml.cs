@@ -13,11 +13,11 @@ using static AIArchitectStudio.Views.DialogKit;
 namespace AIArchitectStudio.Views;
 
 /// <summary>
-/// Окно подтверждения ограничений и «НО» (Волна 6, Liquid Glass). Пункты из документа (ядро + модель) или из интернета (поиск +
-/// база нормативов + синтез) не применяются вслепую: по каждому — наименование и категория, значение для геометрического ядра,
-/// источник с цитатой и страницей / пунктом, признак «цитата сверена с документом» и действия: «Подтвердить» — пункт вступает в
-/// силу в проверке посадки и на участке; «Отклонить — ИИ перепутал» раскрывает «Повторить поиск с уточнением» (комментарий уходит
-/// модели, без модели — ядру) и «Задать / исправить вручную» (правильное значение, отступ, высота или условие).
+/// Окно «Градостроительные ограничения и ЗОУИТ» (Волны 6–7, Liquid Glass). Сверху — четыре этапа глубокого анализа документа
+/// (декомпозиция, пораздельный аудит блоков А–Г, перекрёстная верификация, нормативы) со сводкой полноты; ниже — вкладки
+/// «Ограничения» (пункты для ГИПа), «Сведения по разделам» (в т. ч. «не подлежит установлению», «отсутствует») и «Сверка»
+/// (разделы, сноски, реестровые номера, цитаты, учтённые отрицания). Ничего не применяется вслепую: «Принять» — пункт вступает
+/// в силу в проверке посадки; «Исключить условие» раскрывает «Повторить анализ» с уточнением критериев и «Изменить параметры».
 /// </summary>
 public sealed partial class ConstraintVerificationDialog : ContentDialog
 {
@@ -26,6 +26,9 @@ public sealed partial class ConstraintVerificationDialog : ContentDialog
     private readonly LocalizationService L;
     private readonly ConstraintDialogMode _mode;
     private readonly List<ProjectConstraintItem> _items;
+    private readonly ExhaustiveAnalysisReport? _analysis;
+    private readonly StackPanel _tabs = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+    private int _view;
     private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _comments = new(StringComparer.Ordinal);
     private readonly StackPanel _list = new() { Spacing = 10 };
@@ -49,6 +52,7 @@ public sealed partial class ConstraintVerificationDialog : ContentDialog
         _items = mode == ConstraintDialogMode.Review
             ? [.. vm.ActiveConstraints]
             : [.. vm.LastConstraintExtraction?.Items ?? []];
+        _analysis = mode == ConstraintDialogMode.Document ? vm.LastDocumentAnalysis : null;
         InitializeComponent();
         Background = GlassBrush("LiquidGlassSurfaceBrush", "IslandBrush");
         BorderBrush = GlassBrush("LiquidGlassSpecularBorderBrush", "StudioBorderBrush");
@@ -85,6 +89,7 @@ public sealed partial class ConstraintVerificationDialog : ContentDialog
     {
         Root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         Root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -99,7 +104,9 @@ public sealed partial class ConstraintVerificationDialog : ContentDialog
         {
             ConstraintDialogMode.Web => L.Format("W6SourceWeb", _vm.LastConstraintQuery),
             ConstraintDialogMode.Review => L.Get("W6SourceReview"),
-            _ => L.Format("W6SourceDoc", _vm.ConstraintSource?.FileName ?? "—", _vm.ConstraintSource?.Pages.Count ?? 0)
+            _ => _analysis is { } an
+                ? L.Format("W6SourceDoc", an.Structure.FileName, an.Structure.PageCount) + (an.Structure.Topo is { } t ? " · " + Path.GetFileName(t.SourceFile) : string.Empty)
+                : L.Format("W6SourceDoc", _vm.ConstraintSource?.FileName ?? "—", _vm.ConstraintSource?.Pages.Count ?? 0)
         };
         titles.Children.Add(Text(source, 11.5, secondary: true, wrap: true));
         Grid.SetColumn(titles, 1);
@@ -108,10 +115,19 @@ public sealed partial class ConstraintVerificationDialog : ContentDialog
         modelBox.Children.Add(Caption(L.Get("W6ModelCaption")));
         foreach (var (key, title) in _vm.ConstraintModelChoices) _model.Items.Add(new ComboBoxItem { Content = title, Tag = key });
         _model.SelectedIndex = 0;
+        // Анализ выполнен ядром — в списке выбрано ядро (модель для повторного анализа выбирается здесь же).
+        if (_analysis is { ModelTitle: null }) _model.SelectedIndex = Math.Max(0, _model.Items.Count - 1);
         modelBox.Children.Add(_model);
         Grid.SetColumn(modelBox, 2);
         head.Children.Add(modelBox);
         Root.Children.Add(head);
+
+        // Этапы глубокого анализа и вкладки ведомости.
+        var stagesHost = new StackPanel { Spacing = 10 };
+        if (_analysis is { } a) stagesHost.Children.Add(BuildStages(a));
+        stagesHost.Children.Add(_tabs);
+        Grid.SetRow(stagesHost, 1);
+        Root.Children.Add(stagesHost);
 
         // Повторный поиск в сети по уточнённому запросу (и для документа — поиск дополнительных норм).
         var search = new Grid { ColumnSpacing = 8 };
@@ -123,11 +139,12 @@ public sealed partial class ConstraintVerificationDialog : ContentDialog
         var go = ActionButton("\uE721", L.Get("W6SearchWeb"), async (_, _) => await SearchAgainAsync());
         Grid.SetColumn(go, 1);
         search.Children.Add(go);
-        Grid.SetRow(search, 1);
+        Grid.SetRow(search, 2);
+        if (_analysis is not null) search.Visibility = Visibility.Collapsed;
         Root.Children.Add(search);
 
         var scroll = new ScrollViewer { Content = _list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 10, 0) };
-        Grid.SetRow(scroll, 2);
+        Grid.SetRow(scroll, 3);
         Root.Children.Add(scroll);
 
         var foot = new Grid { ColumnSpacing = 10 };
@@ -148,8 +165,132 @@ public sealed partial class ConstraintVerificationDialog : ContentDialog
         _apply.Foreground = Res("OnAccentBrush");
         Grid.SetColumn(_apply, 2);
         foot.Children.Add(_apply);
-        Grid.SetRow(foot, 3);
+        Grid.SetRow(foot, 4);
         Root.Children.Add(foot);
+    }
+
+    /// <summary>Четыре плитки этапов: номер, название, сводка, время; итог полноты — чипами.</summary>
+    private Grid BuildStages(ExhaustiveAnalysisReport a)
+    {
+        var grid = new Grid { ColumnSpacing = 10 };
+        for (int i = 0; i < 4; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        foreach (var s in a.Stages.OrderBy(s => s.Number).Take(4))
+        {
+            var tile = new StackPanel { Spacing = 3 };
+            var top = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7 };
+            top.Children.Add(new Border
+            {
+                Width = 20, Height = 20, CornerRadius = new CornerRadius(10), Background = Res("AccentBrush"),
+                Child = new FontIcon { Glyph = "\uE73E", FontSize = 10, Foreground = Res("OnAccentBrush") }
+            });
+            top.Children.Add(Text(L.Format("W7StageN", s.Number), 10.5, secondary: true));
+            top.Children.Add(Text(s.Elapsed.TotalSeconds.ToString("0.0", Ru) + " с", 10.5, mono: true, secondary: true));
+            tile.Children.Add(top);
+            tile.Children.Add(Text(s.Title, 12, strong: true, wrap: true));
+            var summary = Text(s.Summary, 10.5, secondary: true, wrap: true);
+            summary.MaxLines = 4;
+            tile.Children.Add(summary);
+            var card = Glass(tile, 10);
+            Grid.SetColumn(card, s.Number - 1);
+            grid.Children.Add(card);
+        }
+        return grid;
+    }
+
+    private void BuildTabs()
+    {
+        _tabs.Children.Clear();
+        if (_analysis is null) return;
+        var items = new List<(string Text, object Tag)>
+        {
+            (L.Format("W7ViewItems", _items.Count), 0),
+            (L.Format("W7ViewFacts", _analysis.Facts.Count), 1),
+            (L.Format("W7ViewCheck", _analysis.Coverage.Count(c => c.Passed), _analysis.Coverage.Count), 2)
+        };
+        _tabs.Children.Add(Segments(items, _view, v => { _view = (int)v; Refresh(); }, "ConstraintView"));
+        string completeness = string.Create(Ru, $"{L.Get("W7Sections")} {_analysis.SectionsFound}/{_analysis.SectionsExpected} · {L.Get("W7FootnotesShort")} {_analysis.FootnotesCovered}/{_analysis.FootnotesTotal} · ") +
+                              string.Create(Ru, $"ЗОУИТ {_analysis.RegistryMatched}/{_analysis.RegistryTotal} · {L.Get("W7QuotesShort")} {_analysis.QuotesVerified}/{_analysis.QuotesTotal}");
+        _tabs.Children.Add(Chip(completeness, _analysis.Complete ? "#10B981" : "#F59E0B", 10.5));
+    }
+
+    private void BuildFacts(ExhaustiveAnalysisReport a)
+    {
+        foreach (var block in Enum.GetValues<AnalysisBlock>())
+        {
+            var facts = a.Facts.Where(f => f.Block == block).ToList();
+            if (facts.Count == 0) continue;
+            var stack = new StackPanel { Spacing = 6 };
+            stack.Children.Add(Text(ExhaustiveDocumentAnalyzerService.BlockTitle(block), 13.5, strong: true));
+            foreach (var f in facts)
+            {
+                var g = new Grid { ColumnSpacing = 12 };
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.9, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(176) });
+                var left = new StackPanel { Spacing = 2 };
+                left.Children.Add(Text(f.Title, 12, strong: true, wrap: true));
+                var value = Text(f.Value, 11.5, wrap: true, mono: f.Status == FactStatus.Established && f.Value.Any(char.IsDigit));
+                if (f.Status == FactStatus.Established) value.Foreground = Res("AccentBrush");
+                left.Children.Add(value);
+                g.Children.Add(left);
+                var quote = Text("«" + f.Quote + "»", 11, secondary: true, wrap: true);
+                quote.FontStyle = Windows.UI.Text.FontStyle.Italic;
+                quote.MaxLines = 3;
+                var mid = new StackPanel { Spacing = 2 };
+                mid.Children.Add(quote);
+                mid.Children.Add(Text((f.Page > 0 ? L.Format("W6Page", f.Page) + " · " : string.Empty) + f.Clause + " · " + f.ExtractedBy, 10, secondary: true));
+                Grid.SetColumn(mid, 1);
+                g.Children.Add(mid);
+                var chip = Chip(L.Get(f.Status switch
+                {
+                    FactStatus.Established => "W7FactEstablished",
+                    FactStatus.NotEstablished => "W7FactNotEstablished",
+                    FactStatus.Absent => "W7FactAbsent",
+                    _ => "W7FactInfo"
+                }), f.Status switch { FactStatus.Established => "#10B981", FactStatus.NotEstablished => "#64748B", FactStatus.Absent => "#94A3B8", _ => "#0A84FF" }, 10.5);
+                chip.HorizontalAlignment = HorizontalAlignment.Right;
+                chip.VerticalAlignment = VerticalAlignment.Top;
+                Grid.SetColumn(chip, 2);
+                g.Children.Add(chip);
+                stack.Children.Add(g);
+            }
+            _list.Children.Add(Glass(stack, 14));
+        }
+    }
+
+    private void BuildCheck(ExhaustiveAnalysisReport a)
+    {
+        foreach (var (kind, title) in new[] { ("section", L.Get("W7CheckSections")), ("footnote", L.Get("W7CheckFootnotes")), ("registry", L.Get("W7CheckRegistry")), ("quote", L.Get("W7CheckQuotes")) })
+        {
+            var rows = a.Coverage.Where(c => c.Kind == kind).ToList();
+            if (rows.Count == 0) continue;
+            var stack = new StackPanel { Spacing = 4 };
+            stack.Children.Add(Text(string.Create(Ru, $"{title} · {rows.Count(r => r.Passed)}/{rows.Count}"), 13, strong: true));
+            foreach (var r in rows)
+            {
+                var g = new Grid { ColumnSpacing = 8 };
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.9, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) });
+                g.Children.Add(Glyph(r.Passed ? "\uE73E" : "\uE7BA", 11, r.Passed ? "AccentBrush" : "TextPrimaryBrush"));
+                var t = Text(r.Title, 11.5, wrap: true);
+                Grid.SetColumn(t, 1);
+                g.Children.Add(t);
+                var d = Text(r.Detail, 11, secondary: true, wrap: true);
+                if (!r.Passed) d.Foreground = Hex("#F59E0B");
+                Grid.SetColumn(d, 2);
+                g.Children.Add(d);
+                stack.Children.Add(g);
+            }
+            _list.Children.Add(Glass(stack, 14));
+        }
+        if (a.Negations.Count > 0)
+        {
+            var neg = new StackPanel { Spacing = 4 };
+            neg.Children.Add(Text(string.Create(Ru, $"{L.Get("W7CheckNegations")} · {a.Negations.Count}"), 13, strong: true));
+            foreach (var n in a.Negations.Distinct().Take(40)) neg.Children.Add(Text(n, 11, secondary: true, wrap: true));
+            _list.Children.Add(Glass(neg, 14));
+        }
     }
 
     private string ModelKey => (_model.SelectedItem as ComboBoxItem)?.Tag as string ?? "core";
@@ -159,9 +300,15 @@ public sealed partial class ConstraintVerificationDialog : ContentDialog
     public void Refresh()
     {
         _list.Children.Clear();
-        if (_items.Count == 0)
-            _list.Children.Add(Glass(Text(L.Get("W6NoItems"), 12.5, secondary: true, wrap: true)));
-        foreach (var item in _items) _list.Children.Add(BuildCard(item));
+        BuildTabs();
+        if (_view == 1 && _analysis is { } fa) BuildFacts(fa);
+        else if (_view == 2 && _analysis is { } ca) BuildCheck(ca);
+        else
+        {
+            if (_items.Count == 0)
+                _list.Children.Add(Glass(Text(L.Get("W6NoItems"), 12.5, secondary: true, wrap: true)));
+            foreach (var item in _items) _list.Children.Add(BuildCard(item));
+        }
         int confirmed = _items.Count(i => i.IsActive), rejected = _items.Count(i => i.Status == ConstraintStatus.Rejected);
         _summary.Text = string.Create(Ru, $"{L.Get("W6Total")} {_items.Count} · {L.Get("W6Confirmed")} {confirmed} · {L.Get("W6Rejected")} {rejected} · {L.Get("W6Pending")} {_items.Count - confirmed - rejected}") +
                         (_vm.LastConstraintExtraction is { ModelError: { Length: > 0 } err } ? " · " + L.Get("W6ModelFailed") + ": " + err : string.Empty);
@@ -175,12 +322,13 @@ public sealed partial class ConstraintVerificationDialog : ContentDialog
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.25, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
 
-        // 1. Наименование «НО», категория, значение для ядра.
+        // 1. Наименование условия, категория, значение для ядра.
         var left = new StackPanel { Spacing = 5 };
         var chips = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         chips.Children.Add(Chip(DeepDocumentConstraintService.CategoryTitle(item.Category), CategoryColor(item.Category)));
         chips.Children.Add(Chip(ImpactTitle(item.Impact), item.Impact == ConstraintImpact.Blocking ? "#EF4444" : item.Impact == ConstraintImpact.RequiresApproval ? "#F59E0B" : "#64748B"));
         if (item.IsFootnote) chips.Children.Add(Chip(L.Get("W6Footnote"), "#A855F7"));
+        if (item.Origin == ConstraintOrigin.Normative) chips.Children.Add(Chip(L.Get("W7NormativeChip"), "#0EA5E9"));
         left.Children.Add(chips);
         left.Children.Add(Text(item.Title, 13.5, strong: true, wrap: true));
         var value = Text(item.ValueText(Ru), 12.5, mono: true, wrap: true);
@@ -417,6 +565,13 @@ public sealed partial class ConstraintVerificationDialog : ContentDialog
     }
 
 #if DEBUG
+    /// <summary>Съёмка и автотест: вкладка 0 — ограничения, 1 — сведения по разделам, 2 — сверка.</summary>
+    public void DebugView(int view)
+    {
+        _view = Math.Clamp(view, 0, 2);
+        Refresh();
+    }
+
     /// <summary>Съёмка: первый пункт подтверждён, второй отклонён с раскрытой панелью уточнения и комментарием, третий задан вручную.</summary>
     public void DebugShowcase()
     {

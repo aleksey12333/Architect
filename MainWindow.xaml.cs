@@ -111,12 +111,10 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void UpdateAiDockMargin()
     {
-        // Режим «Конструкции»: панель конструктора стоит слева от инспектора — панель команд центрируется левее обеих.
-        bool structural = ViewModel.IsStructuralMode && !ViewModel.IsInspectorCollapsed;
-        // Волна 6: панель Среды стоит там же, где панель «Конструкции».
-        bool environment = !structural && ViewModel.IsEnvironmentPanelVisible && !ViewModel.IsInspectorCollapsed;
-        bool reserve = (ViewModel.IsCouncilDockVisible || structural || environment) && !ViewModel.IsInspectorCollapsed && InspectorIsland.Visibility == Visibility.Visible;
-        double right = 14 + (reserve ? InspectorIsland.ActualWidth + 14 : 0) + (structural ? StructuralPanel.Width + 14 : 0) + (environment ? EnvironmentPanel.Width + 14 : 0);
+        // Волна 7: один правый док 340 px (инспектор, панель КЖ/КМ или док раздела) — при открытом Коллоквиуме панель команд
+        // центрируется по свободной части холста, иначе капсула наезжает на док.
+        bool dock = ViewModel.IsEnvironmentPanelVisible || ViewModel.IsStructuralMode || ViewModel.IsInspectorDockVisible && !ViewModel.IsInspectorCollapsed;
+        double right = 14 + (ViewModel.IsCouncilDockVisible && dock ? 340 + 14 : 0);
         var margin = new Thickness(14, 0, right, 16);
         if (AiDock.Margin != margin) AiDock.Margin = margin;
     }

@@ -45,6 +45,8 @@ public sealed partial class GpzuStudioDialog : ContentDialog
     private readonly Border _legend = new();
     private readonly TextBlock _status = Text(string.Empty, 11.5, secondary: true, wrap: true);
     private readonly TextBlock _expertise = Text(string.Empty, 12, wrap: true);
+    private Panel? _modelHost;
+    private Panel? _expertiseHost;
     private readonly ComboBox _model = new() { FontSize = 12, MinWidth = 170, CornerRadius = new CornerRadius(8) };
     private Button? _buildButton, _sheetButton, _expertButton;
 
@@ -382,14 +384,17 @@ public sealed partial class GpzuStudioDialog : ContentDialog
         }
         sp.Children.Add(Divider(6));
         // Поле модели и текст экспертизы переживают перестройку карточек — отцепляем от прежнего родителя.
-        if (_model.Parent is Panel oldBar) oldBar.Children.Remove(_model);
-        if (_expertise.Parent is Panel oldText) oldText.Children.Remove(_expertise);
+        // Parent у элемента в отсоединённой панели бывает null — прежние родители хранятся явно (иначе COMException 0x800F1000).
+        (_model.Parent as Panel ?? _modelHost)?.Children.Remove(_model);
+        (_expertise.Parent as Panel ?? _expertiseHost)?.Children.Remove(_expertise);
         var bar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         _expertButton = ActionButton("", L.Get("W5Expertise"), async (_, _) => await RunExpertiseAsync(), accent: true);
         bar.Children.Add(_expertButton);
         bar.Children.Add(_model);
         sp.Children.Add(bar);
         sp.Children.Add(_expertise);
+        _modelHost = bar;
+        _expertiseHost = sp;
         return Glass(sp);
     }
 

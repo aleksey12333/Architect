@@ -359,7 +359,7 @@ public sealed partial class LocalizationService : ObservableObject
         ["RebarPrice"] = ("Арматура, ₽ за т", "Rebar, ₽ per t"),
 
         // ───────── Вкладка «Анализ»: нагрузки площадки ─────────
-        ["TabAnalysis"] = ("Анализ", "Analysis"),
+        ["TabAnalysis"] = ("КЖ/КМ", "Structure"),
         ["StressMap"] = ("КЭ-Расчёт / Напряжения", "FE analysis / Stress map"),
         ["LoadsTitle"] = ("Нагрузки площадки", "Site loads"),
         ["SnowRegion"] = ("Снеговой район", "Snow region"),
@@ -551,7 +551,7 @@ public sealed partial class LocalizationService : ObservableObject
         ["CouncilMulti"] = ("Совет КБ", "Design Council"),
         ["CouncilModeTip"] = ("Совет КБ: Главный архитектор → Главный конструктор КЖ/КМ → Нормоконтроль → Координатор; каждая роль — своим модулем проектирования",
             "Design Council: chief architect → structural engineer → compliance → coordinator; each role runs on its own design engine"),
-        ["CouncilTeam"] = ("Состав КБ", "Council"),
+        ["CouncilTeam"] = ("Состав бюро", "Bureau members"),
         ["CouncilTeamTitle"] = ("Состав Конструкторского Бюро", "Design Council members"),
         ["CouncilTeamHint"] = ("Каждой роли — своя модель: локальный интеллект (deepseek-r1, gemma, qwen…), облачный сервис или веб-аккаунт. Автоподбор ставит лучшую доступную модель по профилю роли и памяти компьютера; черновик Конструктора проходит до 3 раундов самоисправления по замечаниям ядра расчётов.",
             "Each role runs its own model: local intelligence (deepseek-r1, gemma, qwen…), a cloud service or a web account. Auto picks the best available model for the role and the computer memory; the structural draft gets up to 3 self-correction rounds against the calculation engine."),
@@ -569,10 +569,10 @@ public sealed partial class LocalizationService : ObservableObject
             "Multi-AI: {0} services, {1} models — roles run on different networks"),
         ["CouncilRouteSingle"] = ("Один сервис: все роли выполняются им последовательно, у каждой — свои задание и стиль",
             "Single service: all roles run sequentially, each with its own brief and style"),
-        ["CouncilAudit"] = ("Авто-исправление", "Auto-fix"),
+        ["CouncilAudit"] = ("Аудит модели", "Model audit"),
         ["CouncilAuditTip"] = ("Совет агентов и все проверщики (КЭ-расчёт, пропорции, несущие оси, лестницы и эвакуация, сейсмика, коллизии, инсоляция) на открытой модели — в том числе импортированной из IFC/DXF/PDF",
             "Council agents and all verifiers (FEA, proportions, load paths, stairs and egress, seismic, clashes, insolation) on the open model, including IFC/DXF/PDF imports"),
-        ["CouncilTimeline"] = ("Коллоквиум КБ · Live Debate", "Council colloquium · Live Debate"),
+        ["CouncilTimeline"] = ("Протокол обсуждения бюро", "Bureau discussion log"),
         ["CouncilTimelineShort"] = ("Коллоквиум", "Debate"),
         ["CouncilClear"] = ("Очистить ленту", "Clear timeline"),
         ["CouncilEmptyTimeline"] = ("Реплики агентов появятся здесь: запустите «Аудит текущей сцены» или отправьте задачу в режиме «Совет КБ».",
@@ -1078,7 +1078,8 @@ public sealed partial class LocalizationService : ObservableObject
     {
         if (!Strings.TryGetValue(key, out var pair) && !LibraryStrings.TryGetValue(key, out pair) && !Wave1Strings.TryGetValue(key, out pair) &&
             !Wave2Strings.TryGetValue(key, out pair) && !Wave3Strings.TryGetValue(key, out pair) && !Wave4Strings.TryGetValue(key, out pair) &&
-            !Wave41Strings.TryGetValue(key, out pair) && !Wave5Strings.TryGetValue(key, out pair) && !Wave6Strings.TryGetValue(key, out pair)) return key;
+            !Wave41Strings.TryGetValue(key, out pair) && !Wave5Strings.TryGetValue(key, out pair) && !Wave6Strings.TryGetValue(key, out pair) &&
+            !Wave7Strings.TryGetValue(key, out pair)) return key;
         return language == English ? pair.En : pair.Ru;
     }
 }
