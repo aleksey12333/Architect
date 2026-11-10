@@ -18,7 +18,7 @@ namespace AIArchitectStudio.Services.Photo;
 /// <item>Палитра — k-средних (k = 6, детерминированная инициализация) по пикселям здания: стена, стекло, кровля, акцент, обвязка.</item>
 /// </list>
 /// </summary>
-public static class PhotoArchitectureAnalyzer
+public static partial class PhotoArchitectureAnalyzer
 {
     public const int WorkWidth = 640;
 
@@ -28,6 +28,9 @@ public static class PhotoArchitectureAnalyzer
 
     /// <summary>Только Debug: трассировка признаков последнего анализа.</summary>
     public static string LastTrace { get; private set; } = string.Empty;
+
+    /// <summary>Только Debug: снимок с маской, растительностью и линией основания (BGRA, размер работы).</summary>
+    public static (byte[] Bgra, int W, int H)? LastComposite { get; private set; }
 #endif
 
     private sealed class Work
@@ -35,6 +38,10 @@ public static class PhotoArchitectureAnalyzer
         public int W, H;
         public float[] R = [], G = [], B = [], L = [];
         public bool[] Mask = [];
+        /// <summary>Растительность переднего плана (волна 4.1).</summary>
+        public bool[] Veg = [];
+        /// <summary>Плотность резких осевых перепадов (сетка импостов фасада) в окне 9 × 9.</summary>
+        public float[] Struct = [];
         public int[] Top = [], Bottom = [];
         public int X0, X1, YTop, YBase;
         public int Wpx => X1 - X0 + 1;
@@ -48,7 +55,12 @@ public static class PhotoArchitectureAnalyzer
         var sw = Stopwatch.StartNew();
         var d = new PhotoArchitectureDescriptor { SourceName = name, PixelWidth = image.Width, PixelHeight = image.Height };
         var k = Downscale(image);
+        PrepareStreet(k);
         Segment(k);
+        RestoreOccluded(k, d);
+        FillHoles(k.Mask, k.W, k.H);
+        SegmentationQuality(k, d);
+        VegetationOverlay(k, d);
         if (!Profiles(k))
         {
             d.Morphology = PhotoMorphology.Box;
@@ -78,7 +90,26 @@ public static class PhotoArchitectureAnalyzer
         bool cornerView = CornerView(k, hTop, peak);
 #if DEBUG
         LastMask = (k.Mask, k.W, k.H);
+        {
+            // Композиция для калибровки: фон затемнён, растительность — зелёным, линия основания — красной.
+            var px = new byte[k.W * k.H * 4];
+            for (int i = 0; i < k.Mask.Length; i++)
+            {
+                float f = k.Mask[i] ? 1f : 0.35f;
+                float r = k.R[i] * f, g = k.G[i] * f, b = k.B[i] * f;
+                if (k.Veg[i]) { r = r * 0.4f; g = g * 0.4f + 150; b *= 0.4f; }
+                px[i * 4] = (byte)Math.Clamp(b, 0, 255); px[i * 4 + 1] = (byte)Math.Clamp(g, 0, 255); px[i * 4 + 2] = (byte)Math.Clamp(r, 0, 255); px[i * 4 + 3] = 255;
+            }
+            if (d.BaseLineY0 is { } by0 && d.BaseLineY1 is { } by1)
+                for (int x = 0; x < k.W; x++)
+                {
+                    int y = (int)Math.Round((by0 + (by1 - by0) * x / k.W) * k.H);
+                    if (y >= 0 && y < k.H) { int o = (y * k.W + x) * 4; px[o] = 0; px[o + 1] = 0; px[o + 2] = 255; }
+                }
+            LastComposite = (px, k.W, k.H);
+        }
         var tr = new System.Text.StringBuilder();
+        tr.AppendLine($"[trace] segQ={d.SegmentationQuality:0.00} occluded={d.OccludedShare:0.00} vp={(d.VanishingY is { } vyy ? vyy.ToString("0.00") : "-")} floorsRaw={d.FloorsUncorrected} floorConf={d.FloorConfidence:0.00}");
         tr.AppendLine($"[trace] W={k.W} H={k.H} box x {k.X0}..{k.X1} y {k.YTop}..{k.YBase} n={hTop.Length} Hpx={k.Hpx} peak={peak} corner={cornerView} dome={(dome is null ? "-" : dome.ToString())} arch={(archEnd is null ? "-" : archEnd.ToString())} tiers={tiers.Count}");
         tr.Append("[trace] hTop: ");
         for (int i = 0; i < hTop.Length; i += Math.Max(1, hTop.Length / 60)) tr.Append(Math.Round(hTop[i])).Append(' ');
@@ -98,6 +129,23 @@ public static class PhotoArchitectureAnalyzer
         d.WindowPeriodPx = windowPeriod;
         d.WindowColumns = windowPeriod > 0 ? Math.Max(1, (int)Math.Round(k.Wpx / windowPeriod)) : 0;
         int floors = floorPeriod > 0 ? (int)Math.Round(bodyTopPx / floorPeriod) : 0;
+        d.FloorsUncorrected = floors;
+        // Волна 4.1: поправка на перспективное сжатие верхних этажей (точка схода вертикалей).
+        var vp = VerticalVanishing(k);
+        if (vp.Vy is { } vyv) { d.VanishingY = vyv / k.H; d.VanishingX = vp.Vx / k.W; }
+        var (pf, _, strength) = PerspectiveFloors(k, bodyTopPx, vp.Vy);
+        if (pf > 0 && strength >= 0.12)
+        {
+            d.FloorConfidence = strength;
+            if (pf != floors)
+                d.Evidence.Add(vp.Vy is { } vy
+                    ? $"перспектива: вертикали сходятся в V_y = {vy / k.H:0.00} высоты кадра ({vp.Inliers} из {vp.Segments} граней) — этажность {floors} → {pf} по шагу в координате u = 1/(y − V_y), медиана узких полос"
+                    : $"этажность {floors} → {pf}: медиана узких вертикальных полос (наклонные межэтажные линии углового вида не смазываются)");
+            floors = pf;
+        }
+#if DEBUG
+        LastTrace += $"[trace] strips: {LastStrips} → {pf} (conf {strength:0.00}), raw {d.FloorsUncorrected}, vp {(vp.Vy is { } tv ? (tv / k.H).ToString("0.00") : "-")}{Environment.NewLine}";
+#endif
         double aspect = (double)k.Wpx / k.Hpx;
 
         if (archEnd is { } v && aspect >= 1.3 && dome is null)
@@ -141,14 +189,24 @@ public static class PhotoArchitectureAnalyzer
         {
             var corner = cornerView ? CornerAnalysis(k, hTop, d) : new Corner(0, false, 1, 1, 0, 0);
             var bend = FloorLineCurvature(k, hTop, peak);
-            if (bend.Curved && !(corner.Angle is > 0 and < 72 && bend.Sagitta < 0.02))
+            var wave = TopEdgeWave(k, hTop);
+            bool waveCurved = wave.Curved && (wave.Arcs >= 2 || !cornerView);
+            if (bend.Curved && !(corner.Angle is > 0 and < 72 && bend.Sagitta < 0.02) || waveCurved)
             {
                 d.Morphology = PhotoMorphology.Curved;
                 // Стрела линии этажа на снимке сжата перспективой (вид под углом ~30–40° к фасаду): коэффициент 5 к стреле дуги плана.
-                d.ArcBulgeRatio = Math.Clamp(bend.Sagitta * 5, 0.12, 0.3);
+                d.ArcBulgeRatio = bend.Curved ? Math.Clamp(bend.Sagitta * 5, 0.12, 0.3) : Math.Abs(wave.SignedRatio);
+                if (waveCurved)
+                {
+                    d.FacadeArcs = wave.Arcs;
+                    d.ArcBulgeRatio = Math.Abs(d.ArcBulgeRatio) * Math.Sign(wave.SignedRatio);
+                }
                 d.CornerRadiusRatio = 0.18;
                 d.Confidence = Math.Clamp(0.55 + (0.5 - bend.Ratio) * 0.8, 0.55, 0.92);
-                d.Evidence.Add($"изогнутый фасад: межэтажные линии — дуги (остаток параболы / прямой {bend.Ratio:0.00}, стрела {bend.Sagitta:P1} ширины фасада)");
+                if (bend.Curved) d.Evidence.Add($"изогнутый фасад: межэтажные линии — дуги (остаток параболы / прямой {bend.Ratio:0.00}, стрела {bend.Sagitta:P1} ширины фасада)");
+                if (waveCurved)
+                    d.Evidence.Add($"кромка покрытия — кривая из {wave.Arcs} {(wave.Arcs == 1 ? "дуги" : "чередующихся дуг")} " +
+                                   $"({(wave.Arcs >= 3 ? "волна" : wave.Arcs == 2 ? "S-образный фасад" : "C-дуга")}, центр {(wave.SignedRatio < 0 ? "вогнутый" : "выпуклый")}, стрела/хорда {Math.Abs(wave.SignedRatio):0.00})");
                 AddCurvature(k, d, peak);
             }
             else if (corner.Angle is > 0 and < 72)
@@ -250,38 +308,61 @@ public static class PhotoArchitectureAnalyzer
         // меньше чем на 13 (небо, облака, мощение) и не слишком далёк от модели фона строки (≤ 75, похож на небо или тень).
         var br = Blur(k.R, w, h); var bgc = Blur(k.G, w, h); var bb = Blur(k.B, w, h);
         var background = new bool[w * h];
+        // Происхождение заливки: 1 — от неба (верхняя кромка и верх боковых), 2 — от земли.
+        var origin = new byte[w * h];
         var queue = new Queue<int>();
-        void Seed(int i)
+        void Seed(int i, byte from)
         {
             if (background[i]) return;
             background[i] = true;
+            origin[i] = from;
             queue.Enqueue(i);
         }
-        for (int x = 0; x < w; x++) { Seed(x); Seed((h - 1) * w + x); }
-        for (int y = 0; y < h; y++) { Seed(y * w); Seed(y * w + w - 1); }
+        for (int x = 0; x < w; x++) { Seed(x, 1); Seed((h - 1) * w + x, 2); }
+        for (int y = 0; y < h; y++) { byte from = y < h * 0.45 ? (byte)1 : (byte)2; Seed(y * w, from); Seed(y * w + w - 1, from); }
         while (queue.Count > 0)
         {
             int i = queue.Dequeue();
             int x = i % w, y = i / w;
+            bool fromSky = origin[i] == 1;
             for (int dir = 0; dir < 4; dir++)
             {
                 int nx = x + (dir == 0 ? 1 : dir == 1 ? -1 : 0), ny = y + (dir == 2 ? 1 : dir == 3 ? -1 : 0);
                 if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
                 int q = ny * w + nx;
                 if (background[q]) continue;
+                // Растительность переднего плана — всегда фон (фасад за кроной достраивается после сегментации).
+                if (k.Veg[q]) { background[q] = true; origin[q] = origin[i]; queue.Enqueue(q); continue; }
+                // Заливка неба не входит в сетку импостов (облака и блики в витраже — фасад, а не небо).
+                if (fromSky && IsFacadeStructure(k, q)) continue;
+                bool smooth = fromSky && k.Struct[q] < 0.012f;
                 float dr = br[q] - br[i], dg = bgc[q] - bgc[i], db = bb[q] - bb[i];
-                if (dr * dr + dg * dg + db * db >= 13f * 13f) continue;
+                float step2 = dr * dr + dg * dg + db * db;
+                // Пасмурное небо: мягкие перепады облаков допускаются шире там, где нет сетки фасада.
+                float stepLimit = smooth ? 19f : 13f;
+                if (step2 >= stepLimit * stepLimit) continue;
                 float t = (float)nx / Math.Max(1, w - 1);
                 var a = bgL[ny];
                 var b2 = bgR[ny];
                 var model = (R: a.R + (b2.R - a.R) * t, G: a.G + (b2.G - a.G) * t, B: a.B + (b2.B - a.B) * t);
                 bool sky = (a.B + b2.B) / 2 - (a.R + b2.R) / 2 > 12;
                 float dm = Dist(k, q, model);
-                if (sky ? dm > 30 && !IsSkyLike(k, q, model) : dm > 45 && !IsShadow(k, q, model)) continue;
+                bool cloudy = false;
+                if (smooth)
+                {
+                    var (_, sat, val) = Hsv((k.R[q], k.G[q], k.B[q]));
+                    // Серые облака и пересвеченное у солнца небо (белёсое, без сетки).
+                    // Тёплый светлый камень (R заметно больше B) небом не считается.
+                    bool neutral = k.B[q] >= k.R[q] - 12;
+                    cloudy = neutral && (sat < 0.16 && dm <= 70 || sat < 0.2 && val > 0.72);
+                }
+                if (!cloudy && (sky ? dm > 30 && !IsSkyLike(k, q, model) : dm > 45 && !IsShadow(k, q, model))) continue;
                 background[q] = true;
+                origin[q] = origin[i];
                 queue.Enqueue(q);
             }
         }
+        for (int i = 0; i < background.Length; i++) if (k.Veg[i]) background[i] = true;
         // Вторая заливка — тени на земле: от фона в тёмные пиксели той же цветности, что модель строки (только строки земли).
         foreach (int i0 in Enumerable.Range(0, w * h).Where(i => background[i])) queue.Enqueue(i0);
         while (queue.Count > 0)
@@ -683,6 +764,17 @@ public static class PhotoArchitectureAnalyzer
                 if (hTop[i] - spring < 0.9 * rise) i90 = i;
             }
             if (Math.Abs(i90 - i10) < 0.05 * n) continue;
+            // Волна 4.1: арка выполаживается к вершине — уклон у пяты заметно круче уклона у замка; прямая наклонная кромка
+            // (боковая грань фасада в перспективе снизу вверх) имеет постоянный уклон и аркой не считается.
+            int i30 = start, i70 = start;
+            for (int s = 0; s <= width; s++)
+            {
+                int i = start + dir * s;
+                if (hTop[i] - spring < 0.3 * rise) i30 = i;
+                if (hTop[i] - spring < 0.7 * rise) i70 = i;
+            }
+            double early = 0.2 * rise / Math.Max(1, Math.Abs(i30 - i10)), late = 0.2 * rise / Math.Max(1, Math.Abs(i90 - i70));
+            if (early < 1.6 * late) continue;
             // Конёк: от вершины арки внутрь — пологая линия.
             int ridge = 0;
             for (int s = 1; crown + dir * s >= 0 && crown + dir * s < n; s++)
@@ -718,14 +810,18 @@ public static class PhotoArchitectureAnalyzer
             var pts = Enumerable.Range(a, b - a + 1).Select(i => ((double)i, hTop[i])).ToList();
             var (slope, icept) = Line(pts);
             double rms = Math.Sqrt(pts.Average(p => Math.Pow(p.Item2 - (slope * p.Item1 + icept), 2)));
-            if (Math.Abs(slope) > 0.15 || rms > 0.015 * H) continue;
+            // Волна 4.1: на угловом виде кромки уступов наклонены перспективой — допускается уклон до 0,4 (прямая без излома).
+            if (Math.Abs(slope) > 0.4 || rms > 0.022 * H) continue;
             plateaus.Add((a, b, pts.Average(p => p.Item2)));
         }
         var levels = plateaus.Select(p => p.Level).OrderBy(v => v).Aggregate(new List<double>(), (acc, v) => { if (acc.Count == 0 || v - acc[^1] >= 0.04 * H) acc.Add(v); return acc; });
         if (levels.Count < 3) return [];
+        // «Пирамида» с одним допустимым нарушением (реальные каскады с консольными сдвигами не строго монотонны).
         int peakIdx = plateaus.IndexOf(plateaus.MaxBy(p => p.Level));
-        for (int i = 1; i <= peakIdx; i++) if (plateaus[i].Level < plateaus[i - 1].Level - 0.02 * H) return [];
-        for (int i = peakIdx + 1; i < plateaus.Count; i++) if (plateaus[i].Level > plateaus[i - 1].Level + 0.02 * H) return [];
+        int violations = 0;
+        for (int i = 1; i <= peakIdx; i++) if (plateaus[i].Level < plateaus[i - 1].Level - 0.02 * H) violations++;
+        for (int i = peakIdx + 1; i < plateaus.Count; i++) if (plateaus[i].Level > plateaus[i - 1].Level + 0.02 * H) violations++;
+        if (violations > (plateaus.Count >= 5 ? 1 : 0)) return [];
         return plateaus.Select(p => new PhotoTier((double)(p.A + k.X0) / k.W, (double)(p.B + 1 + k.X0) / k.W, p.Level / H, 0)).ToList();
     }
 
@@ -1195,10 +1291,14 @@ public static class PhotoArchitectureAnalyzer
     {
         var px = new List<(float R, float G, float B, int X, int Y)>();
         int step = Math.Max(1, (int)Math.Sqrt(Math.Max(1, k.Mask.Count(m => m)) / 9000.0));
+        // Волна 4.1: по маске, сжатой на 2 px, — смешанные пиксели кромки (кайма неба) не занимают кластер палитры.
+        var inner = k.Mask.Length > 0 ? Erode(Erode(k.Mask, k.W, k.H), k.W, k.H) : k.Mask;
+        if (inner.Count(m => m) < k.Mask.Count(m => m) / 3) inner = k.Mask;
         for (int y = 0; y < k.H; y += step)
             for (int x = 0; x < k.W; x += step)
-                if (k.Mask.Length > 0 && k.In(x, y))
+                if (k.Mask.Length > 0 && inner[y * k.W + x] && !(k.Veg.Length > 0 && k.Veg[y * k.W + x]))
                 {
+                    // Кроны перед фасадом (достроенная маска) — не цвет здания.
                     int i = y * k.W + x;
                     px.Add((k.R[i], k.G[i], k.B[i], x, y));
                 }
@@ -1238,6 +1338,11 @@ public static class PhotoArchitectureAnalyzer
         var wall = opaque.FirstOrDefault(c => Hsv(c.Color).Val >= 0.3);
         if (wall.Share == 0 && opaque.Count > 0) wall = opaque[0];
         if (wall.Share == 0) wall = clusters[0];
+        // Волна 4.1: близкий по цвету (Δ < 48), но светлее непрозрачный кластер — освещённая грань того же материала (стена в тени
+        // смешана с окнами); цвет материала — по освещённой грани.
+        var lit = opaque.Where(c => c.Index != wall.Index && c.Share >= Math.Max(0.006, wall.Share * 0.1) && ColorGap(c.Color, wall.Color) < 48 &&
+                                    Hsv(c.Color).Val > Hsv(wall.Color).Val + 0.04).OrderByDescending(c => Hsv(c.Color).Val).FirstOrDefault();
+        if (lit.Share > 0) wall = lit;
         var glassMain = glass.Count > 0 ? glass[0] : clusters.OrderBy(c => Hsv(c.Color).Val).First();
         var accent = opaque.FirstOrDefault(c => c.Index != wall.Index && ColorGap(c.Color, wall.Color) > 28);
         if (accent.Share == 0) accent = wall;

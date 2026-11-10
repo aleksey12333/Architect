@@ -71,6 +71,7 @@ public static class PhotoBimSynthesizer
             case PhotoMorphology.Curved: b.CurvedTower(); break;
             case PhotoMorphology.Cascading: b.Cascade(); break;
             case PhotoMorphology.Triangular: b.Flatiron(); break;
+            case PhotoMorphology.Rotunda when d.HasCourtyard: b.RingAtrium(); break;
             case PhotoMorphology.Rotunda: b.Rotunda(); break;
             case PhotoMorphology.ArchSpan: b.ArchHall(); break;
             case PhotoMorphology.Pitched: b.PitchedHouse(); break;
@@ -299,10 +300,25 @@ public static class PhotoBimSynthesizer
             int podium = Math.Clamp(d.PodiumFloors > 0 ? d.PodiumFloors : 2, 1, 4);
             if (floors <= podium + 2) podium = 0;
             double L = Math.Clamp(d.WidthM, 24, 60), B = Math.Clamp(Math.Min(d.DepthM, L * 0.7), 16, 30);
-            double bulge = Math.Clamp(o.Curvature is { } c ? c * 0.3 : Math.Max(0.15, d.ArcBulgeRatio), 0, 0.3) * L;
             double r = Math.Clamp(d.CornerRadiusRatio * B, 2.5, 6);
-            var tower = CurvedPlan(L, B, bulge, r);
-            _m.Log.Add(string.Create(Ru, $"План башни: хорда {L:0.#} м, глубина {B:0.#} м, стрела дуги фасада {bulge:0.##} м, скругление {r:0.#} м"));
+            int arcs = Math.Clamp(d.FacadeArcs, 1, 5);
+            List<PathSegment> tower;
+            double bulge;
+            if (arcs >= 2 || d.ArcBulgeRatio < 0)
+            {
+                // Волна 4.1: S-образный / волнистый фасад (чередующиеся дуги) или вогнутая C-дуга; знак центра — по снимку.
+                double ratio = Math.Clamp(o.Curvature is { } c ? c * 0.3 : Math.Max(0.12, Math.Abs(d.ArcBulgeRatio)), 0.04, 0.3) * (d.ArcBulgeRatio < 0 ? -1 : 1);
+                tower = WavePlan(L, B, ratio, arcs, r);
+                bulge = tower.Take(arcs).Max(s => s.Bulge);
+                _m.Log.Add(string.Create(Ru, $"План башни: фасад из {arcs} {(arcs == 1 ? "вогнутой дуги" : "чередующихся дуг")} (стрелы {string.Join(" / ", tower.Take(arcs).Select(s => s.Bulge.ToString("+0.0;−0.0", Ru)))} м), хорда {L:0.#} м, глубина {B:0.#} м, скругление {r:0.#} м"));
+            }
+            else
+            {
+                bulge = Math.Clamp(o.Curvature is { } c ? c * 0.3 : Math.Max(0.15, d.ArcBulgeRatio), 0, 0.3) * L;
+                tower = CurvedPlan(L, B, bulge, r);
+                _m.Log.Add(string.Create(Ru, $"План башни: хорда {L:0.#} м, глубина {B:0.#} м, стрела дуги фасада {bulge:0.##} м, скругление {r:0.#} м"));
+            }
+            bulge = Math.Max(0, bulge);
             var towerCols = ColumnLayout(tower, 1.1, 6.6, 3.2, 7.2);
             if (floors >= 9) CoreCenter = Geometry2D.Centroid(ContourPath.Sample(tower));
 
@@ -342,6 +358,123 @@ public static class PhotoBimSynthesizer
             path.Add(Corner((-x + r, z), (-x, z), (-x, z - r), r));
             path.Add(new PathSegment(-x, z - r, -x, -z, 0));
             return path;
+        }
+
+        /// <summary>
+        /// Волнистый фасад на стороне −Z: фронт делится на n дуг с чередующимся знаком стрелы (центральная — знак ratio; у S-образного
+        /// при n = 2 — первая); стрела дуги = |ratio| · хорда участка, вогнутые — не глубже 35 % глубины плана. Тыл — как у
+        /// <see cref="CurvedPlan"/>.
+        /// </summary>
+        private static List<PathSegment> WavePlan(double L, double B, double ratio, int n, double r)
+        {
+            double x = L / 2, z = B / 2, chord = L / n;
+            int centerSign = ratio < 0 ? -1 : 1;
+            var path = new List<PathSegment>();
+            for (int i = 0; i < n; i++)
+            {
+                int sign = n % 2 == 1 ? ((i - n / 2) % 2 == 0 ? centerSign : -centerSign) : (i % 2 == 0 ? centerSign : -centerSign);
+                double sag = Math.Abs(ratio) * chord * sign;
+                if (sag < 0) sag = -Math.Min(-sag, 0.35 * B);
+                path.Add(new PathSegment(-x + chord * i, -z, -x + chord * (i + 1), -z, sag));
+            }
+            path.Add(new PathSegment(x, -z, x, z - r, 0));
+            path.Add(Corner((x, z - r), (x, z), (x - r, z), r));
+            path.Add(new PathSegment(x - r, z, -x + r, z, 0));
+            path.Add(Corner((-x + r, z), (-x, z), (-x, z - r), r));
+            path.Add(new PathSegment(-x, z - r, -x, -z, 0));
+            return path;
+        }
+
+        // ───────────────────────────── 1а. Кольцевой корпус с атриумом под стеклянным куполом ─────────────────────────────
+
+        /// <summary>
+        /// Волна 4.1: кольцевое здание (в плане — кольцо R_нар / R_вн) с внутренним двором-атриумом: на каждом этаже — витражи-ленты по
+        /// дугам наружного и внутреннего контура (белые пояса — торцы перекрытий), три кольца колонн, кольцевое перекрытие (плита по
+        /// наружному кругу + отверстие двора), стеклянный купол над двором (опирается на обод перекрытия за два этажа до покрытия),
+        /// фронтальная дуговая колоннада из круглых колонн на два этажа с навесом.
+        /// </summary>
+        public void RingAtrium()
+        {
+            int floors = Floors(6, 2, 14);
+            double fh = Math.Clamp(FloorH < 3.6 ? 4.0 : FloorH, 3.6, 4.8);
+            double Ro = Math.Clamp(d.WidthM / 2, 24, 62);
+            double depth = Math.Clamp(Ro * 0.3, 12, 20);
+            double Ri = Ro - depth;
+            var outer = ContourPath.Circle(Ro, 16);
+            var inner = ContourPath.Circle(Ri, 12);
+            var outerPoly = ContourPath.Sample(outer);
+            var innerPoly = ContourPath.Sample(inner);
+            _m.Log.Add(string.Create(Ru, $"Кольцевой корпус: R нар. {Ro:0.#} м, R атриума {Ri:0.#} м, ширина кольца {depth:0.#} м, {floors} эт. по {fh:0.#} м, стеклянный купол над двором, дуговая колоннада"));
+            Foundation(outerPoly, 0.9);
+            // Под двором фундаментная плита — кольцом (отверстие R_атриума − 1,5 м): купол двора опирается на её внутренний обод.
+            var footing = _m.Elements[^1];
+            var footHole = new ArchitecturalElement
+            {
+                Type = ElementTypes.SlabOpening, Name = "Фундамент · двор под куполом", Material = "void", LevelIndex = 0, HostElementId = footing.Id, BuildingGroupId = _group
+            };
+            double fr = Ri - 1.5;
+            footHole.Polygon2D = ContourPath.Sample(ContourPath.Circle(fr, 12)).Select(p => new Point2D(Math.Round(p.X, 4), Math.Round(p.Z, 4))).ToList();
+            footHole.Size = [2 * fr, footing.Height + ParametricSolverService.OpeningClearance, 2 * fr];
+            footHole.Position = [0, footing.Y, 0];
+            _m.Elements.Add(footHole);
+            // Кольца колонн: у наружного и внутреннего контура и посередине (шаг по дуге ≤ 7,2 м).
+            var cols = new List<(double X, double Z)>();
+            foreach (double rr in depth > 14 ? new[] { Ro - 1.2, (Ro + Ri) / 2, Ri + 1.2 } : new[] { Ro - 1.2, Ri + 1.2 })
+            {
+                int n = Math.Max(8, (int)Math.Ceiling(2 * Math.PI * rr / 7.2));
+                for (int i = 0; i < n; i++) cols.Add((rr * Math.Cos(2 * Math.PI * (i + 0.5) / n), rr * Math.Sin(2 * Math.PI * (i + 0.5) / n)));
+            }
+            double tributary = 7.2 * depth / (depth > 14 ? 3 : 2);
+            int domeLevel = Math.Max(0, floors - 3);
+            for (int i = 0; i < floors; i++)
+            {
+                double y = i * fh, h = fh - SlabThickness;
+                int k = 0;
+                double size = ColumnSize(tributary, floors - i);
+                foreach (var (x, z) in cols) Column(x, z, y, h, size, i, $"Кольцо · К{++k} · эт. {i + 1}", d.AccentHex, round: true);
+                int f = 0;
+                foreach (var s in outer) Facade(s, true, y, h, i, $"Кольцо · наружный витраж {++f} · эт. {i + 1}", d.WallHex);
+                f = 0;
+                foreach (var s in inner) Facade(s, true, y, h, i, $"Кольцо · витраж атриума {++f} · эт. {i + 1}", d.WallHex);
+                bool last = i == floors - 1;
+                var plate = Plate(last ? ElementTypes.Roof : ElementTypes.Slab, last ? "Кольцо · покрытие" : $"Кольцо · перекрытие {i + 1}", outerPoly,
+                    last ? SlabThickness + 0.08 : SlabThickness, y + fh, i, d.WallHex, roofShape: last ? RoofShapes.FlatParapet : null);
+                if (last) Models.RoofDesign.Write(plate, Models.RoofDesign.DefaultSlabThickness, 0, 1.1);
+                // Двор-атриум: отверстие в кольцевом перекрытии по внутреннему контуру.
+                double hole = Ri;
+                var opening = new ArchitecturalElement
+                {
+                    Type = ElementTypes.SlabOpening, Name = $"Кольцо · двор-атриум · эт. {i + 1}", Material = "void", LevelIndex = i, HostElementId = plate.Id,
+                    BuildingGroupId = _group
+                };
+                var ring = ContourPath.Sample(ContourPath.Circle(hole, 12));
+                opening.Polygon2D = ring.Select(p => new Point2D(Math.Round(p.X, 4), Math.Round(p.Z, 4))).ToList();
+                opening.Size = [2 * hole, plate.Height + ParametricSolverService.OpeningClearance, 2 * hole];
+                opening.Position = [0, plate.Y, 0];
+                _m.Elements.Add(opening);
+            }
+            // Стеклянный купол двора: стальная сетчатая оболочка со стеклом от кольца фундамента до отметки чуть выше покрытия (с
+            // высоты виден внутри кольца, как на снимке); перекрытия кольца его вес не несут. R купола < R отверстий перекрытий.
+            double domeH = floors * fh + 1.5;
+            var dome = new ArchitecturalElement { Type = ElementTypes.Shell, Name = "Атриум · стеклянный купол (стальная сетка)", Material = "steel", LevelIndex = 0 };
+            dome.SetSize(2 * (Ri - 0.6), domeH, 2 * (Ri - 0.6));
+            dome.SetPosition(0, domeH / 2, 0);
+            _ = domeLevel;
+            Add(dome, d.GlassHex);
+            // Фронтальная дуговая колоннада (сторона −Z): круглые колонны на два этажа и навес-кольцевой сектор.
+            int nc = Math.Clamp(d.ColonnadeColumns > 0 ? d.ColonnadeColumns : 10, 6, 16);
+            double rc = Ro + 3.4, stepA = 4.4 / rc, colH = Math.Min(2, floors) * fh - 0.6;
+            for (int i = 0; i < nc; i++)
+            {
+                double a = -Math.PI / 2 + (i - (nc - 1) / 2.0) * stepA;
+                Column(rc * Math.Cos(a), rc * Math.Sin(a), 0, colH, 1.1, 0, $"Колоннада · колонна {i + 1}", d.WallHex, round: true);
+            }
+            double a0 = -Math.PI / 2 - ((nc - 1) / 2.0 + 0.6) * stepA, a1 = -Math.PI / 2 + ((nc - 1) / 2.0 + 0.6) * stepA;
+            var canopy = new List<(double X, double Z)>();
+            for (int i = 0; i <= 16; i++) { double a = a0 + (a1 - a0) * i / 16; canopy.Add(((rc + 1.3) * Math.Cos(a), (rc + 1.3) * Math.Sin(a))); }
+            for (int i = 16; i >= 0; i--) { double a = a0 + (a1 - a0) * i / 16; canopy.Add(((Ro + 0.05) * Math.Cos(a), (Ro + 0.05) * Math.Sin(a))); }
+            Plate(ElementTypes.Slab, "Колоннада · навес", canopy, 0.6, colH + 0.6, Math.Min(1, floors - 1), d.WallHex);
+            _footW = _footD = 2 * Ro + 8;
         }
 
         /// <summary>Дуга скругления прямого угла: от a через вершину v к b, радиус r (стрела r(1 − cos 45°)).</summary>
@@ -529,26 +662,43 @@ public static class PhotoBimSynthesizer
             double fh = Math.Clamp(FloorH, 3.0, 3.8);
             bool core = floors >= 9;
             var cc = (X: 0.0, Z: Lt / 3 - 6.5);
+            // Волна 4.1: мансарда — верхние этажи с отступом от фасада 0,9 м (крутой скат в цвете кровли), карниз над последним
+            // этажом стен.
+            bool mansard = (o.Roof ?? d.Roof) == PhotoRoofKind.Mansard && floors >= 4;
+            int mansardFloors = mansard ? (floors >= 8 ? 2 : 1) : 0;
+            var mansardPath = path;
+            if (mansard)
+            {
+                // Контур мансарды — треугольник, смещённый внутрь на 0,9 м, со скруглённой стрелкой (тот же приём, что у фасада).
+                var tri = Offset(new List<(double X, double Z)> { prow, right, left }, -0.9);
+                (double X, double Z) Near((double X, double Z) p) => tri.MinBy(q => Dist(q, p));
+                mansardPath = TrianglePath(Near(prow), Near(right), Near(left), Math.Max(0.6, r - 0.9));
+            }
+            var mansardPoly = mansard ? ContourPath.Sample(mansardPath) : poly;
+            if (mansard) _m.Log.Add($"Мансарда: {mansardFloors} эт. с отступом 0,9 м от фасада, карниз с выносом 0,8 м");
             for (int i = 0; i < floors; i++)
             {
                 double y = i * fh, h = fh - SlabThickness;
+                bool inMansard = i >= floors - mansardFloors;
                 int k = 0;
                 double size = ColumnSize(6.4 * 6.6, floors - i);
                 foreach (var (x, z) in columns)
                 {
                     if (core && Math.Abs(x - cc.X) < 4.4 && Math.Abs(z - cc.Z) < 4.4) continue;
+                    if (inMansard && (!Geometry2D.Contains(mansardPoly, x, z) || Geometry2D.DistanceToBoundary(mansardPoly, x, z) < 0.8)) continue;
                     Column(x, z, y, h, size, i, $"Утюг · К{++k} · эт. {i + 1}");
                 }
                 if (core && i == 0) Box(ElementTypes.Core, "Утюг · ядро жёсткости", cc.X, 0, cc.Z, 7.2, floors * fh, 7.2, 0, 0, d.AccentHex);
                 // Фасады: две длинные стены, тыльная и дуга стрелки; углы тыла — биссектрисная стыковка.
                 var walls = new List<ArchitecturalElement>();
                 int f = 0;
-                foreach (var s in path)
+                foreach (var s in inMansard ? mansardPath : path)
                 {
-                    string hex = i < 2 ? d.AccentHex : d.WallHex;
-                    var w = Facade(s, false, y, h, i, $"Утюг · фасад {++f} · эт. {i + 1}", hex, s.IsArc ? 1.6 : 2.2, 1.2, 1.9, 0.85, 0.45);
+                    if (s.Chord < 0.4) continue;
+                    string hex = inMansard ? d.RoofHex : i < 2 ? d.AccentHex : d.WallHex;
+                    var w = Facade(s, false, y, h, i, $"Утюг · {(inMansard ? "мансарда" : "фасад")} {++f} · эт. {i + 1}", hex, s.IsArc ? 1.6 : inMansard ? 3.0 : 2.2,
+                        inMansard ? 1.0 : 1.2, inMansard ? 1.4 : 1.9, 0.85, 0.45);
                     walls.Add(w);
-                    if (i == 0 && s.IsArc) { }
                 }
                 var straight = walls.Where(w => !CurvedDesign.IsArc(w)).ToList();
                 for (int a = 0; a < straight.Count; a++)
@@ -558,11 +708,14 @@ public static class PhotoBimSynthesizer
                 double top = y + fh;
                 if (i == floors - 1)
                 {
-                    // Карниз: покрытие с выносом 0,8 м по контуру.
-                    var cornice = Offset(poly, 0.8);
-                    Plate(ElementTypes.Roof, "Утюг · покрытие и карниз", cornice, 0.45, top, i, d.FrameHex, roofShape: RoofShapes.Flat);
+                    // Карниз: покрытие с выносом 0,8 м по контуру (над мансардой — по её контуру, в цвете кровли).
+                    var cornice = Offset(mansard ? mansardPoly : poly, mansard ? 0.3 : 0.8);
+                    Plate(ElementTypes.Roof, mansard ? "Утюг · покрытие мансарды" : "Утюг · покрытие и карниз", cornice, 0.45, top, i, mansard ? d.RoofHex : d.FrameHex, roofShape: RoofShapes.Flat);
                 }
-                else Plate(ElementTypes.Slab, $"Утюг · перекрытие {i + 1}", poly, SlabThickness, top, i, d.AccentHex);
+                else if (mansard && i == floors - mansardFloors - 1)
+                    // Карниз над последним этажом стен: перекрытие с выносом 0,8 м — основание мансарды.
+                    Plate(ElementTypes.Slab, $"Утюг · перекрытие {i + 1} и карниз", Offset(poly, 0.8), SlabThickness + 0.15, top, i, d.FrameHex);
+                else Plate(ElementTypes.Slab, $"Утюг · перекрытие {i + 1}", inMansard ? mansardPoly : poly, SlabThickness, top, i, d.AccentHex);
             }
             _footW = Bw;
             _footD = Lt;

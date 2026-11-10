@@ -376,6 +376,7 @@ public partial class App : Application
     /// <summary>При старте проверяет сохранённые ключи и подгружает облачные модели в ИИ-док (в фоне, без блокировки UI).</summary>
     private static async Task RefreshApiKeysAsync()
     {
+        _ = StartUnifiedGatewayAsync();
         try
         {
             await Task.Run(() => Services.GetRequiredService<AiKeyInspectorService>().RefreshAllAsync());
@@ -383,6 +384,30 @@ public partial class App : Application
         catch (Exception ex)
         {
             WriteCrashLog("key-refresh", ex);
+        }
+    }
+
+    /// <summary>
+    /// Волна 4.1: единый облачный шлюз по переменным окружения сеанса (AIA_LIVE_BASE_URL, AIA_LIVE_API_KEY) — авторазведка моделей,
+    /// публикация пула в меню (Sonnet 5.5 и GPT 5.6 Luna первыми). Без переменных — ничего не происходит (офлайн).
+    /// </summary>
+    private static async Task StartUnifiedGatewayAsync()
+    {
+        // Волна 5: ключ подхватывается автоматически (LACHUGA_API_KEY / AIA_LIVE_API_KEY, реестр пользователя, настройки Claude Code
+        // того же шлюза). Автотест детерминирован: в нём общий клиент создаётся только по явным переменным AIA_LIVE_*.
+        bool selfTest = Environment.GetEnvironmentVariable("AIA_DEBUG_SELFTEST") is { Length: > 0 } || Environment.GetEnvironmentVariable("AIA_DEBUG_WAVE41TEST") is { Length: > 0 };
+        if ((selfTest ? UnifiedGatewayConfig.FromEnvironment() : UnifiedGatewayConfig.FromEnvironment() ?? UnifiedGatewayConfig.Discover()) is not { } config) return;
+        var client = new UnifiedCloudAiClient(config);
+        UnifiedCloudAiClient.Shared = client;
+        Services.GetRequiredService<AIOrchestrator>().Unified = client;
+        try
+        {
+            var models = await Task.Run(() => client.DiscoverAsync());
+            Services.GetRequiredService<AiModelRegistry>().SetUnifiedModels(models.OrderBy(m => m.Spec.Priority).Select(m => m.Option).ToList());
+        }
+        catch (Exception ex) when (ex is AiProviderException or HttpRequestException or TaskCanceledException)
+        {
+            WriteCrashLog("unified-gateway", new InvalidOperationException(client.Redact(ex.Message)));
         }
     }
 

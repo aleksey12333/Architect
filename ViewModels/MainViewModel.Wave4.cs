@@ -116,6 +116,13 @@ public sealed partial class MainViewModel
     /// </summary>
     public async Task RunPhotoLiftAsync(PhotoLiftRoute route, PhotoArchitectureDescriptor descriptor, PhotoLiftOptions options, byte[] jpeg, string name, PhotoLiftResult? visualCore)
     {
+        if (route is PhotoLiftRoute.Cloud or PhotoLiftRoute.CloudFast)
+        {
+            if (route == PhotoLiftRoute.Cloud)
+                await RunCloudPhotoDialogueAsync(UnifiedCloudAiClient.Luna56.Alias, descriptor, options, jpeg, name, visualCore, helper: UnifiedCloudAiClient.Gemini31Pro.Alias);
+            else await RunCloudPhotoDialogueAsync(UnifiedCloudAiClient.Gemini31Pro.Alias, descriptor, options, jpeg, name, visualCore);
+            return;
+        }
         var primary = ModelDirector.Primary is { Available: true } p ? p.Option : null;
         if (route is PhotoLiftRoute.Auto or PhotoLiftRoute.PrimaryLocal && (primary is null || !IsLocalCoreReady(primary)))
         {

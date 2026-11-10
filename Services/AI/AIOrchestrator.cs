@@ -193,6 +193,8 @@ public sealed class AIOrchestrator(
         AiProviderKind.Gemini => gemini,
         AiProviderKind.OpenAI or AiProviderKind.OpenRouter => openAi,
         AiProviderKind.Anthropic => claude,
+        AiProviderKind.UnifiedGateway => Unified ?? throw new AiProviderException("AIA-KEY-MISSING",
+            "Облачный сервис не подключён: задайте адрес и ключ в переменных окружения сеанса (" + UnifiedGatewayConfig.UrlVariable + ", " + UnifiedGatewayConfig.KeyVariable + ")."),
         _ => throw new ArgumentOutOfRangeException(nameof(model), model.Provider, "Веб-аккаунты обрабатываются WebAccountBridgeProvider.")
     };
 
@@ -203,6 +205,20 @@ public sealed class AIOrchestrator(
 
     /// <summary>Строгая логика проёмов в солвере (<see cref="SolverInput.EnforceBuildingLogic"/>); включает главное окно приложения.</summary>
     public bool EnforceBuildingLogic { get; set; }
+
+    /// <summary>Единый облачный шлюз сеанса (волна 4.1); null — не подключён (нет переменных окружения).</summary>
+    public UnifiedCloudAiClient? Unified { get; set; }
+
+    /// <summary>
+    /// Разбор ответа и солвер без сверки со снимком (ход 1 диалога «генерация → аудит ядром → доработка»): ядро оценивает
+    /// именно то, что вернула модель, а не уже исправленную модель.
+    /// </summary>
+    public SolvedResponse SolveRaw(string text, AiRequestContext ctx, SceneStateService target) =>
+        Solve(text, new AiRequestContext
+        {
+            Task = ctx.Task, Model = ctx.Model, Mode = ctx.Mode, SelectedElementId = ctx.SelectedElementId, Scene = ctx.Scene, Vision = ctx.Vision, Images = ctx.Images,
+            Image = ctx.Image, ImageName = ctx.ImageName, Kind = ctx.Kind, SheetsDescription = ctx.SheetsDescription
+        }, target);
 
     public SolvedResponse Solve(string text, AiRequestContext ctx, SceneStateService target)
     {

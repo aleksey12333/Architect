@@ -6,11 +6,13 @@ namespace AIArchitectStudio.Services.Photo;
 /// <summary>Признаки формы BIM-модели для сверки со снимком.</summary>
 public sealed record ModelTraits(
     int ArcElements, bool HasRoundedContour, int Tiers, bool HasDome, bool HasVault, bool HasGable, int NonOrthogonalWalls, double MinPlanAngle,
-    int RoundColumns, int ColoredElements, int Elements, int Floors, double Width, double Depth, double Height, int InteriorColumnsInHall)
+    int RoundColumns, int ColoredElements, int Elements, int Floors, double Width, double Depth, double Height, int InteriorColumnsInHall,
+    int AlternatingArcs = 0, bool HasRingSlab = false, bool HasMansard = false, int InclinedPylons = 0, bool HasPodium = false)
 {
     public string Describe() => string.Create(CultureInfo.GetCultureInfo("ru-RU"),
-        $"дуг {ArcElements}, скругление {(HasRoundedContour ? "да" : "нет")}, ярусов {Tiers}, купол {(HasDome ? "да" : "нет")}, свод {(HasVault ? "да" : "нет")}, " +
-        $"косых стен {NonOrthogonalWalls} (мин. угол {MinPlanAngle:0} °), круглых колонн {RoundColumns}, в цвете {ColoredElements} из {Elements}, этажей {Floors}");
+        $"дуг {ArcElements} (чередований {AlternatingArcs}), скругление {(HasRoundedContour ? "да" : "нет")}, ярусов {Tiers}, купол {(HasDome ? "да" : "нет")}, двор {(HasRingSlab ? "да" : "нет")}, " +
+        $"свод {(HasVault ? "да" : "нет")}, косых стен {NonOrthogonalWalls} (мин. угол {MinPlanAngle:0} °), мансарда {(HasMansard ? "да" : "нет")}, стилобат {(HasPodium ? "да" : "нет")}, " +
+        $"круглых колонн {RoundColumns}, наклонных пилонов {InclinedPylons}, в цвете {ColoredElements} из {Elements}, этажей {Floors}");
 }
 
 /// <summary>Итог сверки ответа модели со снимком: оценки до и после, пересборка, список наложенных исправлений.</summary>
@@ -58,7 +60,65 @@ public static class PhotoFidelityEnforcer
             inHall = elements.Count(e => e.Category == BimCategory.Column && Math.Abs(ArchitecturalElement.RotateY(e.X - v.X, e.Z - v.Z, -v.RotationY).X) < lx &&
                                          Math.Abs(ArchitecturalElement.RotateY(e.X - v.X, e.Z - v.Z, -v.RotationY).Z) < lz);
         }
-        return new ModelTraits(arcs, rounded, tiers, dome, vault, gable, nonOrtho, minAngle, round, colored, elements.Count, floors, w, d, h, inHall);
+        // Волна 4.1: чередование знака стрелы дуг фасада вдоль X на самом «дуговом» этаже (волна / S-фасад).
+        int alternating = 0;
+        var arcWalls = elements.Where(e => e.Category is BimCategory.Wall or BimCategory.CurtainWall && CurvedDesign.IsArc(e) && e.Width > 3).ToList();
+        if (arcWalls.Count > 0)
+        {
+            int level = arcWalls.GroupBy(e => e.LevelIndex).MaxBy(g => g.Count())!.Key;
+            // Знак «к зрителю» (−Z): стрела по локальной +Z, поворот стены — в мировую нормаль; дуги тыла не считаются.
+            var front = arcWalls.Where(e => e.LevelIndex == level).Select(e =>
+            {
+                var (nx, nz) = ArchitecturalElement.RotateY(0, CurvedDesign.ArcBulge(e), e.RotationY);
+                return (e.X, e.Z, Toward: -nz);
+            }).OrderBy(p => p.X).ToList();
+            double zMid = front.Count > 0 ? front.Average(p => p.Z) : 0;
+            var signs = front.Where(p => p.Z <= zMid + 1e-6 && Math.Abs(p.Toward) > 0.05).Select(p => Math.Sign(p.Toward)).ToList();
+            for (int i = 0; i < signs.Count; i++) if (i == 0 || signs[i] != signs[i - 1]) alternating++;
+        }
+        bool ringSlab = elements.Any(o => o.Category == BimCategory.SlabOpening && elements.FirstOrDefault(s => s.Id == o.HostElementId) is { } host &&
+                                          o.Width * o.Depth > 0.12 * host.Width * host.Depth);
+        bool mansard = elements.Any(e => e.Category == BimCategory.Roof && RoofShapes.Normalize(e.RoofShape) == RoofShapes.Mansard) ||
+                       elements.Any(e => e.Name.Contains("мансард", StringComparison.OrdinalIgnoreCase) || e.Name.Contains("mansard", StringComparison.OrdinalIgnoreCase));
+        int pylons = elements.Count(e => e.Category is BimCategory.Column or BimCategory.Beam && e.Rotation.Length > 2 && (Math.Abs(e.Rotation[2]) > 3 || Math.Abs(e.Rotation[0]) > 3));
+        // Стилобат: нижние перекрытия шире верхних на ≥ 15 %.
+        var slabArea = elements.Where(e => e.Category == BimCategory.Slab || e.Category == BimCategory.Roof && e.IsFlatRoof)
+            .GroupBy(e => e.LevelIndex).ToDictionary(g => g.Key, g => g.Sum(e => e.Width * e.Depth));
+        bool podium = slabArea.Count >= 3 && slabArea.OrderBy(p => p.Key).Take(2).Max(p => p.Value) >= 1.15 * slabArea.OrderByDescending(p => p.Key).Take(2).Min(p => p.Value);
+        return new ModelTraits(arcs, rounded, tiers, dome, vault, gable, nonOrtho, minAngle, round, colored, elements.Count, floors, w, d, h, inHall,
+            alternating, ringSlab, mansard, pylons, podium);
+    }
+
+    /// <summary>
+    /// Оценка совпадения с паспортом снимка (волна 4.1): обязательные признаки морфологии плюс то, что Визуальное ядро и модель со
+    /// зрением увидели на снимке: волна из N дуг, стилобат, двор-атриум, мансарда, число ярусов.
+    /// </summary>
+    public static double Score(ModelTraits t, PhotoArchitectureDescriptor d, PhotoMorphology morphology)
+    {
+        double basic = Score(t, morphology);
+        var extra = new List<bool>();
+        switch (morphology)
+        {
+            case PhotoMorphology.Curved:
+                if (d.FacadeArcs >= 2) extra.Add(t.AlternatingArcs >= Math.Min(3, d.FacadeArcs));
+                if (d.PodiumFloors > 0) extra.Add(t.HasPodium);
+                break;
+            case PhotoMorphology.Rotunda when d.HasCourtyard:
+                extra.Add(t.HasRingSlab);
+                break;
+            case PhotoMorphology.Triangular when d.Roof == PhotoRoofKind.Mansard:
+                extra.Add(t.HasMansard);
+                break;
+            case PhotoMorphology.Cascading when d.Tiers.Count >= 3:
+                extra.Add(t.Tiers >= Math.Min(d.Tiers.Count, 6));
+                break;
+            case PhotoMorphology.ArchSpan when d.InclinedPylons > 0:
+                extra.Add(t.InclinedPylons >= Math.Min(4, d.InclinedPylons));
+                break;
+        }
+        if (extra.Count == 0) return basic;
+        // Базовая оценка (обязательные признаки + цвет) и дополнительные признаки — поровну.
+        return (basic + (double)extra.Count(c => c) / extra.Count) / 2;
     }
 
     private static IEnumerable<(double X, double Z)> ElementGeometryOutline(ArchitecturalElement e) => AIArchitectStudio.Rendering.ElementGeometryBuilder.WorldOutline(e);
@@ -131,10 +191,10 @@ public static class PhotoFidelityEnforcer
         options ??= new PhotoLiftOptions();
         var morphology = PhotoBimSynthesizer.Resolve(descriptor, options);
         var before = Traits(elements);
-        double score = Score(before, morphology);
+        double score = Score(before, descriptor, morphology);
         var corrections = new List<string>();
         string group = groups.FirstOrDefault()?.Id ?? elements.FirstOrDefault()?.BuildingGroupId ?? options.GroupName;
-        bool shapeOk = Score(before with { ColoredElements = before.Elements }, morphology) >= AcceptScore && elements.Count > 0;
+        bool shapeOk = Score(before with { ColoredElements = before.Elements }, descriptor, morphology) >= AcceptScore && elements.Count > 0;
         PhotoBimModel model;
         if (shapeOk)
         {
@@ -161,7 +221,7 @@ public static class PhotoFidelityEnforcer
             corrections.AddRange(Restored(before, Traits(model.Elements), morphology, descriptor));
         }
         var after = Traits(model.Elements);
-        return (model, new FidelityReport(score, Score(after, morphology), !shapeOk, corrections, before, after));
+        return (model, new FidelityReport(score, Score(after, descriptor, morphology), !shapeOk, corrections, before, after));
     }
 
     private static IEnumerable<string> Restored(ModelTraits b, ModelTraits a, PhotoMorphology m, PhotoArchitectureDescriptor d)
@@ -174,6 +234,10 @@ public static class PhotoFidelityEnforcer
         if (a.HasVault && !b.HasVault) yield return "восстановлено сводчатое покрытие без промежуточных опор";
         if (a.NonOrthogonalWalls > b.NonOrthogonalWalls) yield return string.Create(Ru, $"восстановлен непрямоугольный план: острый угол {a.MinPlanAngle:0} °, косых стен {a.NonOrthogonalWalls}");
         if (a.ColoredElements > b.ColoredElements) yield return $"цвета снимка: стены {d.WallHex}, стекло {d.GlassHex}, кровля {d.RoofHex}";
+        if (a.AlternatingArcs > b.AlternatingArcs && a.AlternatingArcs >= 2) yield return $"фасад-волна: {a.AlternatingArcs} чередующихся дуг";
+        if (a.HasRingSlab && !b.HasRingSlab) yield return "кольцевое перекрытие с двором-атриумом";
+        if (a.HasMansard && !b.HasMansard) yield return "мансардные этажи с отступом";
+        if (a.HasPodium && !b.HasPodium) yield return "стилобат шире башни";
         _ = m;
     }
 

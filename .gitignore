@@ -43,6 +43,9 @@ Installer/Output/
 *.msix
 *.appx
 
+# Установленные пакеты навыков агентов (не часть продукта)
+.agents/
+
 # NuGet
 *.nupkg
 packages/

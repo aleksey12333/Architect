@@ -260,6 +260,7 @@ public sealed partial class MainWindow
 #if DEBUG
     private void InitializeWave4Debug()
     {
+        InitializeWave41Debug();
         // AIA_DEBUG_PHOTOBIM=путь — студия «Реконструкция по фото и плану» со снимком (проверка каркаса готова, превью повёрнуто).
         if (Environment.GetEnvironmentVariable("AIA_DEBUG_PHOTOBIM") is { Length: > 0 } studioPath)
             RootGrid.Loaded += async (_, _) =>
@@ -352,6 +353,8 @@ public sealed partial class MainWindow
                             for (int i = 0; i < lm.Mask.Length; i++) { byte v = lm.Mask[i] ? (byte)255 : (byte)40; px[i * 4] = v; px[i * 4 + 1] = v; px[i * 4 + 2] = v; px[i * 4 + 3] = 255; }
                             await File.WriteAllBytesAsync(Path.Combine(liftDir, "mask_" + Path.GetFileNameWithoutExtension(file) + ".png"), await PhotoImageLoader.EncodeAsync(px, lm.W, lm.H, true));
                         }
+                        if (PhotoArchitectureAnalyzer.LastComposite is { } lc)
+                            await File.WriteAllBytesAsync(Path.Combine(liftDir, "dbg_" + Path.GetFileNameWithoutExtension(file) + ".png"), await PhotoImageLoader.EncodeAsync(lc.Bgra, lc.W, lc.H, true));
                         sb.AppendLine(descriptor.ToPromptMatrix());
                         sb.AppendLine(PhotoArchitectureAnalyzer.LastTrace);
                         if (Environment.GetEnvironmentVariable("AIA_DEBUG_PHOTOPROFILE") == "1")

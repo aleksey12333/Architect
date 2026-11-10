@@ -102,7 +102,17 @@ public static class PhotoToBimService
         if (verify)
         {
             var swGate = Stopwatch.StartNew();
-            var gate = VerificationGateService.Inspect(sandbox, loads, "Визуальное ядро · Реконструкция по фото", cascade: true);
+            // Волна 4.1 — бюджет времени: у большой модели, которую подбор не довёл до K_исп ≤ 1, проверщик несущей способности (KE)
+            // моделирует варианты полным расчётом на каждый перегруженный элемент — минуты. Тогда он пропускается: решает резервный
+            // каркас ядра (диалог) или пользователь видит K_исп > 1 в сводке, а не ждёт.
+            BimVerificationPipeline? pipeline = null;
+            if (model.Elements.Count > 350 && StructuralAnalysisService.Analyze(model.Elements, model.Groups, loads).MaxUtilization > 1.0)
+            {
+                pipeline = new BimVerificationPipeline();
+                foreach (var v in BimVerificationPipeline.CreateDefault().Verifiers.Where(v => v.Id != "KE")) pipeline.Register(v);
+                result.Log.Add("Бюджет времени: подбор не довёл большую модель до K_исп ≤ 1 — проверщик несущей способности (KE) пропущен");
+            }
+            var gate = VerificationGateService.Inspect(sandbox, loads, "Визуальное ядро · Реконструкция по фото", pipeline: pipeline, cascade: true);
             result.Log.Add(string.Create(Ru, $"Шлюз достоверности: проверщиков {gate.VerifiersRun}, замечаний {gate.Fixes.Count + gate.Unresolved.Count}, {swGate.ElapsedMilliseconds} мс"));
             result.Passes = gate.Passes;
             if (gate.Fixes.Count > 0)

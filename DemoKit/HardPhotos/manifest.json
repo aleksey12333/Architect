@@ -1,0 +1,12 @@
+{
+  "format": "aia-hardphotos",
+  "version": 1,
+  "note": "Сложные сгенерированные фотографии (деревья, машины, пасмурное небо, перспектива, соседние дома). Эталоны — визуальная оценка по увеличенным фрагментам снимков, с допуском.",
+  "photos": [
+    { "file": "Hard_1_Ring_Atrium_Glass_Dome.jpg", "title": "Кольцевой атриум со стеклянным куполом и колоннадой", "morphology": "rotunda", "courtyard": true, "floorsMin": 5, "floorsMax": 7, "colonnadeMin": 6, "view": "aerial" },
+    { "file": "Hard_2_Arch_Vault_Arena.jpg", "title": "Большепролётная арена под сводом", "morphology": "arch_span", "floorsMin": 1, "floorsMax": 1, "pylons": true, "view": "street" },
+    { "file": "Hard_3_Cascading_Terraces.jpg", "title": "Каскадный комплекс с террасами и консолями", "morphology": "cascading", "floorsMin": 8, "floorsMax": 10, "tiersMin": 4, "view": "street-corner" },
+    { "file": "Hard_4_Flatiron_Mansard.jpg", "title": "Угловой «дом-утюг» с эркером и мансардой", "morphology": "triangular", "floorsMin": 11, "floorsMax": 14, "mansard": true, "view": "street-up" },
+    { "file": "Hard_5_Wave_Glass_Tower.jpg", "title": "Стеклянная башня с волнистым фасадом на стилобате", "morphology": "curved", "floorsMin": 18, "floorsMax": 22, "facadeArcsMin": 2, "podium": true, "view": "street-up" }
+  ]
+}

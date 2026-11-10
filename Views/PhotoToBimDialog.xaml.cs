@@ -121,7 +121,10 @@ public sealed partial class PhotoToBimDialog : ContentDialog
         route.Children.Add(Caption(_loc.Get("W4Route")));
         _route = new ComboBox { Width = 330, FontSize = 12 };
         foreach (var key in new[] { "W4RouteAuto", "W4RoutePrimary", "W4RouteCouncil", "W4RouteWeb" }) _route.Items.Add(_loc.Get(key));
-        _route.SelectedIndex = 0;
+        // Волна 4.1: облачный сервис сеанса (ключ в переменных окружения) — маршрут по умолчанию: Sonnet 5.5, затем GPT 5.6 Luna.
+        bool cloud = Services.AI.UnifiedCloudAiClient.Shared is not null;
+        if (cloud) { _route.Items.Add(_loc.Get("W41RouteCloud")); _route.Items.Add(_loc.Get("W41RouteCloudLuna")); }
+        _route.SelectedIndex = cloud ? (int)PhotoLiftRoute.Cloud : 0;
         route.Children.Add(_route);
         Grid.SetColumn(route, 2);
         grid.Children.Add(route);
@@ -448,6 +451,21 @@ public sealed partial class PhotoToBimDialog : ContentDialog
         double ox = (SourceW - imageW * scale) / 2, oy = (SourceH - imageH * scale) / 2, w = imageW * scale, h = imageH * scale;
         Point P(double x, double y) => new(ox + x * w, oy + y * h);
         var accent = (Brush)Res("AccentBrush");
+        // Волна 4.1: отфильтрованные помехи — растительность перед фасадом (зелёным) и линия тротуара, до которой достроены грани.
+        var veg = Hex("#30D158", 0x55);
+        foreach (var (x0, y0, x1, y1) in d.ClutterCells)
+        {
+            var a = P(x0, y0); var b = P(x1, y1);
+            var cell = new Rectangle { Width = Math.Max(1, b.X - a.X), Height = Math.Max(1, b.Y - a.Y), Fill = veg };
+            Canvas.SetLeft(cell, a.X);
+            Canvas.SetTop(cell, a.Y);
+            _overlay.Children.Add(cell);
+        }
+        if (d.BaseLineY0 is { } by0 && d.BaseLineY1 is { } by1)
+        {
+            var a = P(0, by0); var b = P(1, by1);
+            _overlay.Children.Add(new Line { X1 = a.X, Y1 = a.Y, X2 = b.X, Y2 = b.Y, Stroke = Hex("#FF9F0A"), StrokeThickness = 2, StrokeDashArray = [5, 3] });
+        }
         // Силуэт (верх и низ).
         var top = new Polyline { Stroke = accent, StrokeThickness = 2 };
         foreach (var (x, y) in d.TopProfile) top.Points.Add(P(x, y));

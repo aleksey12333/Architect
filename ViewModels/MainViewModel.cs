@@ -434,6 +434,13 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     public partial string BusyText { get; set; } = string.Empty;
 
+    /// <summary>Готовность долгой задачи 0…100 % (волна 4.1: живой диалог по снимку); −1 — без полосы прогресса.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBusyPercent))]
+    public partial double BusyPercent { get; set; } = -1;
+
+    public bool HasBusyPercent => BusyPercent >= 0;
+
     /// <summary>Подсказка над полем ввода: запрос изменит выбранный элемент.</summary>
     public string SelectedHint => Scene.SelectedElement is { } el ? Loc.Format("ChatSelectedHint", el.DisplayTitle) : string.Empty;
 

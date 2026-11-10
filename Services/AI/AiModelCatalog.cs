@@ -13,7 +13,10 @@ public enum AiProviderKind
     WebGemini,
 
     /// <summary>Локальный ИИ-сервер Ollama (http://localhost:11434): модели пользователя, загрузка и выгрузка весов — на стороне сервера.</summary>
-    Ollama
+    Ollama,
+
+    /// <summary>Единый облачный шлюз (волна 4.1): модели разных семейств по одному ключу сеанса (<see cref="UnifiedCloudAiClient"/>).</summary>
+    UnifiedGateway
 }
 
 /// <summary>Пункт меню выбора модели в Spotlight ИИ-доке.</summary>
@@ -96,6 +99,7 @@ public static class AiModelCatalog
         AiProviderKind.WebClaude => "Claude",
         AiProviderKind.WebGemini => "Gemini",
         AiProviderKind.Ollama => "Локальный интеллект",
+        AiProviderKind.UnifiedGateway => "Облачный сервис",
         _ => "Qwen"
     };
 
@@ -118,6 +122,7 @@ public static class AiModelCatalog
         AiProviderKind.Anthropic => "\uE8F2",
         AiProviderKind.OpenRouter => "\uE968",
         AiProviderKind.Ollama => "\uE950",
+        AiProviderKind.UnifiedGateway => "\uE753",
         _ => "\uE774"
     };
 
@@ -130,6 +135,7 @@ public static class AiModelCatalog
         AiProviderKind.OpenRouter => "openrouter",
         AiProviderKind.Local => "local",
         AiProviderKind.Ollama => "ollama",
+        AiProviderKind.UnifiedGateway => "unified",
         _ => "web"
     };
 
@@ -203,6 +209,8 @@ public static class AiModelCatalog
         if (WebOptions.FirstOrDefault(o => o.Id == id) is { } web) return web;
         if (id.StartsWith("local:file:", StringComparison.Ordinal)) return LocalFile(id["local:file:".Length..]);
         if (id.StartsWith("ollama:", StringComparison.Ordinal) && id.Length > 7) return Ollama(id[7..]);
+        if (id.StartsWith("unified:", StringComparison.Ordinal) && id.Length > 8)
+            return UnifiedCloudAiClient.SpecOf(id[8..]) is { } spec ? UnifiedCloudAiClient.OptionFor(spec, id[8..]) : null;
         int colon = id.IndexOf(':');
         if (colon <= 0) return null;
         var prefix = id[..colon];

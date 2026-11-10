@@ -14,7 +14,16 @@ public enum PhotoLiftRoute
     /// <summary>Совет КБ (консилиум ролей).</summary>
     Council,
     /// <summary>Внешний веб-проектировщик (вход в аккаунт в панели WebView2).</summary>
-    Web
+    Web,
+
+    /// <summary>
+    /// Волна 4.1: облачный сервис, «быстро и точно» — GPT 5.6 Luna (основная) + параллельное экспресс-чтение Gemini 3.1 Pro, живой
+    /// диалог «ответ → проверка ядром → доработка».
+    /// </summary>
+    Cloud,
+
+    /// <summary>Волна 4.1: облачный сервис, «самый быстрый» — Gemini 3.1 Pro (~15–25 с), тот же диалог.</summary>
+    CloudFast
 }
 
 /// <summary>Подготовленная отправка снимка модели: модель, изображения (пусто — модель без зрения), промпт, канал.</summary>
@@ -27,7 +36,7 @@ public sealed record VisionDispatch(AiModelOption Model, IReadOnlyList<AiImage> 
 /// матрицу компьютерного зрения (силуэт, ярусы, кривизна, углы, ритм, покрытие, палитра HEX) вместо картинки. Ответ любой модели
 /// проходит <see cref="PhotoFidelityEnforcer"/> и проверку каркаса (хук <see cref="AIOrchestrator.Solve(string, AiRequestContext, SceneStateService)"/>).
 /// </summary>
-public static class UniversalVisionModelBridge
+public static partial class UniversalVisionModelBridge
 {
     public static bool AcceptsImages(AiModelOption model) => model.IsWeb || model.SupportsVision;
 
@@ -60,7 +69,8 @@ public static class UniversalVisionModelBridge
         sb.AppendLine("VisionPromptV2 · Реконструкция по фото и плану.");
         sb.AppendLine(string.IsNullOrWhiteSpace(task) ? $"Задача: построить 3D BIM-модель здания со снимка «{d.SourceName}» — визуально идентичную снимку и конструктивно правильную." : "Задача: " + task.Trim());
         sb.AppendLine(imageAttached
-            ? "Снимок приложен. Числа паспорта Визуального ядра (ниже) точнее оценки на глаз — используй их."
+            ? "Снимок приложен. Паспорт Визуального ядра (ниже) — измерения по пикселям: используй его как ориентир, но где снимок явно расходится " +
+              "(число этажей по рядам окон, форма и углы плана, ярусы), верь снимку."
             : "Снимок этой модели недоступен: строй модель строго по матрице компьютерного зрения (ниже), не упрощай форму.");
         sb.AppendLine($"Морфология: {PhotoArchitectureDescriptor.MorphologyCode(d.Morphology)} — {PhotoToBimService.MorphologyTitle(d.Morphology)}. Обязательно:");
         foreach (var rule in Rules(d)) sb.AppendLine("- " + rule);

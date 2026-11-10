@@ -391,6 +391,8 @@ public static partial class CadSelfTestService
         // ── Волна 4: криволинейная геометрия, подъём по фото через любые модели, пять сооружений DemoKit/InternetPhotos.
         report.AppendLine().AppendLine("═══ Волна 4: дуги, рез торцов, скругления, купола и своды, подъём по фото и сверка со снимком, пять сооружений из интернета ═══");
         failures += await CheckWave4Async(directory, report);
+        report.AppendLine("Волна 4.1 — сложные снимки, перспектива, облачный шлюз и двухходовой протокол:");
+        failures += await CheckWave41Async(report);
         ReinforcementCalculator.StrictMinimum = strictMinimum;
 
         report.Insert(0, failures == 0 ? "ИТОГ: УСПЕХ — расхождений нет\n\n" : $"ИТОГ: ОШИБОК {failures}\n\n");

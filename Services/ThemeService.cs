@@ -128,6 +128,7 @@ public sealed class ThemeService
                 softAcrylic.TintLuminosityOpacity = theme.IsLight ? 0.55 : 0.62;
                 softAcrylic.FallbackColor = theme.PanelOpaque;
             }
+            ApplyLiquidGlass(resources, theme);
         }
 
         if (_window?.Content is FrameworkElement root)
@@ -135,6 +136,52 @@ public sealed class ThemeService
 
         ApplyTitleBarColors(theme);
         ThemeChanged?.Invoke(this, theme);
+    }
+
+    /// <summary>
+    /// Кисти дизайн-системы Liquid Glass (навык winui-liquid-glass): стеклянная поверхность,
+    /// приподнятое стекло и спекулярный рефракционный кант 1 px. Создаются при первом применении
+    /// темы и затем мутируются, чтобы {StaticResource} в коде окон оставался живым.
+    /// </summary>
+    private static void ApplyLiquidGlass(ResourceDictionary resources, ThemeDefinition theme)
+    {
+        static AcrylicBrush Acrylic(ResourceDictionary r, string key)
+        {
+            if (r.TryGetValue(key, out var v) && v is AcrylicBrush a) return a;
+            var created = new AcrylicBrush();
+            r[key] = created;
+            return created;
+        }
+        var surface = Acrylic(resources, "LiquidGlassSurfaceBrush");
+        surface.TintColor = theme.PanelOpaque;
+        surface.TintOpacity = theme.Panel.A / 255.0 * 0.62;
+        surface.TintLuminosityOpacity = theme.IsLight ? 0.88 : 0.78;
+        surface.FallbackColor = theme.PanelOpaque;
+
+        var elevated = Acrylic(resources, "LiquidGlassElevatedBrush");
+        elevated.TintColor = theme.IsLight ? theme.PanelOpaque : theme.Card;
+        elevated.TintOpacity = theme.Panel.A / 255.0 * 0.80;
+        elevated.TintLuminosityOpacity = theme.IsLight ? 0.92 : 0.86;
+        elevated.FallbackColor = theme.IsLight ? theme.PanelOpaque : theme.Card;
+
+        LinearGradientBrush rim;
+        if (resources.TryGetValue("LiquidGlassSpecularBorderBrush", out var rv) && rv is LinearGradientBrush existing)
+            rim = existing;
+        else
+        {
+            rim = new LinearGradientBrush { StartPoint = new Windows.Foundation.Point(0, 0), EndPoint = new Windows.Foundation.Point(1, 1) };
+            for (int i = 0; i < 4; i++) rim.GradientStops.Add(new GradientStop());
+            resources["LiquidGlassSpecularBorderBrush"] = rim;
+        }
+        Color[] stops = theme.IsLight
+            ? [Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF), Color.FromArgb(0x14, 0, 0, 0), Color.FromArgb(0x14, 0, 0, 0), Color.FromArgb(0x2A, 0x25, 0x63, 0xEB)]
+            : [Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF), Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF), Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF), Color.FromArgb(0x28, 0x38, 0xBD, 0xF8)];
+        double[] offsets = [0.0, 0.45, 0.70, 1.0];
+        for (int i = 0; i < 4; i++)
+        {
+            rim.GradientStops[i].Color = stops[i];
+            rim.GradientStops[i].Offset = offsets[i];
+        }
     }
 
     private void ApplyTitleBarColors(ThemeDefinition theme)

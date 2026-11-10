@@ -28,8 +28,27 @@ public sealed class AiModelRegistry
     private readonly SettingsService _settings;
     private List<AiModelOption> _localExtras = [];
     private List<AiModelOption> _ollama = [];
+    private List<AiModelOption> _unified = [];
 
     public event EventHandler? ModelsChanged;
+
+    /// <summary>
+    /// Модели единого облачного шлюза сеанса (волна 4.1: Sonnet 5.5 и GPT 5.6 Luna первыми). Только в памяти — в settings.json
+    /// не кэшируются (ключ шлюза живёт в переменных окружения сеанса).
+    /// </summary>
+    public void SetUnifiedModels(IReadOnlyList<AiModelOption> models)
+    {
+        lock (_sync) _unified = models.ToList();
+        ModelsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public IReadOnlyList<AiModelOption> UnifiedModels
+    {
+        get
+        {
+            lock (_sync) return _unified.ToList();
+        }
+    }
 
     public AiModelRegistry(SettingsService settings)
     {
@@ -55,6 +74,7 @@ public sealed class AiModelRegistry
             {
                 var list = new List<AiModelOption>(_ollama) { AiModelCatalog.LocalQwen3B, AiModelCatalog.LocalQwen7B };
                 list.AddRange(_localExtras);
+                list.AddRange(_unified);
                 foreach (var provider in AiModelCatalog.CloudProviders)
                     if (_cloud.TryGetValue(provider, out var models)) list.AddRange(models);
                 list.AddRange(AiModelCatalog.WebOptions);

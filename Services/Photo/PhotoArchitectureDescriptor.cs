@@ -26,8 +26,8 @@ public enum PhotoMorphology
     Box
 }
 
-/// <summary>Покрытие по снимку.</summary>
-public enum PhotoRoofKind { Flat, Parapet, Dome, Vault, Gable, Cone }
+/// <summary>Покрытие по снимку (Mansard — волна 4.1: мансардные этажи с крутым скатом, «утюг»).</summary>
+public enum PhotoRoofKind { Flat, Parapet, Dome, Vault, Gable, Cone, Mansard }
 
 /// <summary>Цвет палитры фасада: «#RRGGBB», доля пикселей здания, роль, центр области на снимке (0…1).</summary>
 public sealed record PhotoPaletteColor(string Hex, double Share, string Role, double X, double Y);
@@ -82,6 +82,44 @@ public sealed class PhotoArchitectureDescriptor
     public List<PhotoTier> Tiers { get; } = [];
     public List<PhotoPaletteColor> Palette { get; } = [];
 
+    // ── Волна 4.1: сложные реальные снимки и перекрёстная сверка с моделью со зрением ──
+
+    /// <summary>Доверие к силуэту 0…1 (маска на весь кадр, касание краёв — низкое).</summary>
+    public double SegmentationQuality { get; set; } = 1;
+
+    /// <summary>Доля столбцов здания, перекрытых растительностью у основания (грани достроены до тротуара).</summary>
+    public double OccludedShare { get; set; }
+
+    /// <summary>Прямая основания (тротуара) — доли высоты кадра у левого и правого края; null — не найдена.</summary>
+    public double? BaseLineY0 { get; set; }
+    public double? BaseLineY1 { get; set; }
+
+    /// <summary>Точка схода вертикалей (доли кадра; y &lt; 0 — над кадром, съёмка снизу); null — вертикали параллельны.</summary>
+    public double? VanishingY { get; set; }
+    public double? VanishingX { get; set; }
+
+    /// <summary>Этажность без поправки на перспективу (для сравнения) и сила периодичности межэтажных линий 0…1.</summary>
+    public int FloorsUncorrected { get; set; }
+    public double FloorConfidence { get; set; }
+
+    /// <summary>Клетки отфильтрованной растительности (доли кадра) — оверлей студии.</summary>
+    public List<(double X0, double Y0, double X1, double Y1)> ClutterCells { get; } = [];
+
+    /// <summary>Число дуг вдоль главного фасада: 1 — C-дуга, 2 — S-образный, 3 и более — волна (знак первой — по ArcBulgeRatio).</summary>
+    public int FacadeArcs { get; set; } = 1;
+
+    /// <summary>Кольцевое здание с внутренним двором-атриумом (под куполом).</summary>
+    public bool HasCourtyard { get; set; }
+
+    /// <summary>Консольные сдвиги объёмов (каскад).</summary>
+    public int Cantilevers { get; set; }
+
+    /// <summary>Наклонные пилоны / контрфорсы большепролётного зала, увиденные на снимке (0 — не видны или не известно).</summary>
+    public int InclinedPylons { get; set; }
+
+    /// <summary>Источник ключевых чисел после сверки с моделью: «Визуальное ядро» / «модель со зрением» (для отчёта).</summary>
+    public List<string> ReconcileNotes { get; } = [];
+
     public string WallHex { get; set; } = "#D8D2C4";
     public string GlassHex { get; set; } = "#6F8FA8";
     public string RoofHex { get; set; } = "#7A7F86";
@@ -110,8 +148,12 @@ public sealed class PhotoArchitectureDescriptor
             GlazingRatio = GlazingRatio, WindowColumns = WindowColumns, WindowPeriodPx = WindowPeriodPx, FloorPeriodPx = FloorPeriodPx, Roof = Roof,
             DomeWidthRatio = DomeWidthRatio, DomeHeightRatio = DomeHeightRatio, ColonnadeColumns = ColonnadeColumns, WallHex = WallHex,
             GlassHex = GlassHex, RoofHex = RoofHex, AccentHex = AccentHex, FrameHex = FrameHex, BoxX0 = BoxX0, BoxX1 = BoxX1, BoxTop = BoxTop,
-            BoxBase = BoxBase, AnalysisMs = AnalysisMs
+            BoxBase = BoxBase, AnalysisMs = AnalysisMs, SegmentationQuality = SegmentationQuality, OccludedShare = OccludedShare, BaseLineY0 = BaseLineY0,
+            BaseLineY1 = BaseLineY1, VanishingX = VanishingX, VanishingY = VanishingY, FloorsUncorrected = FloorsUncorrected, FloorConfidence = FloorConfidence,
+            FacadeArcs = FacadeArcs, HasCourtyard = HasCourtyard, Cantilevers = Cantilevers, InclinedPylons = InclinedPylons
         };
+        copy.ClutterCells.AddRange(ClutterCells);
+        copy.ReconcileNotes.AddRange(ReconcileNotes);
         copy.Evidence.AddRange(Evidence);
         copy.Tiers.AddRange(Tiers);
         copy.Palette.AddRange(Palette);
@@ -143,6 +185,7 @@ public sealed class PhotoArchitectureDescriptor
         PhotoRoofKind.Vault => "barrel_vault",
         PhotoRoofKind.Gable => "gable",
         PhotoRoofKind.Cone => "cone",
+        PhotoRoofKind.Mansard => "mansard",
         _ => "flat"
     };
 
@@ -158,6 +201,14 @@ public sealed class PhotoArchitectureDescriptor
         sb.AppendLine(string.Create(ci, $"- source: {SourceName} · {PixelWidth}×{PixelHeight} px · analysis {AnalysisMs:0} ms"));
         sb.AppendLine(string.Create(ci, $"- morphology: {MorphologyCode(Morphology)} (confidence {Confidence:0.00}); evidence: {string.Join("; ", Evidence)}"));
         sb.AppendLine(string.Create(ci, $"- floors: {Floors}, floorHeight: {FloorHeight:0.00} m, totalHeight: {HeightM:0.0} m, footprint ≈ {WidthM:0.0} × {DepthM:0.0} m"));
+        string low = SegmentationQuality < 0.55 ? " (LOW: building touches frame edges / neighbours — trust what you see on the image for shape and floors)" : string.Empty;
+        string vp = VanishingY is { } vy ? string.Create(ci, $"; vertical vanishing point y = {vy:0.00} of image height") : "; verticals parallel";
+        sb.AppendLine(string.Create(ci, $"- silhouette reliability: {SegmentationQuality:0.00}{low}; floor rhythm strength {FloorConfidence:0.00}; floors without perspective correction {FloorsUncorrected}{vp}"));
+        if (OccludedShare > 0.02) sb.AppendLine(string.Create(ci, $"- foreground occluders (trees, cars) cover {OccludedShare:P0} of the facade base — facade edges were extended to the sidewalk"));
+        if (FacadeArcs > 1) sb.AppendLine($"- main facade consists of {FacadeArcs} alternating arcs (S / wave plan)");
+        if (HasCourtyard) sb.AppendLine("- ring building with an inner courtyard / atrium");
+        if (InclinedPylons > 0) sb.AppendLine($"- inclined pylons / buttresses along the vault: {InclinedPylons}");
+        if (ReconcileNotes.Count > 0) sb.AppendLine("- reconciled with vision model: " + string.Join("; ", ReconcileNotes));
         sb.AppendLine(string.Create(ci, $"- silhouette box (fractions of image): x {BoxX0:0.000}…{BoxX1:0.000}, top {BoxTop:0.000}, base {BoxBase:0.000}"));
         sb.Append("- silhouette top polyline (x,y fractions): ");
         sb.AppendLine(string.Join(" ", TopProfile.Where((_, i) => i % Math.Max(1, TopProfile.Count / 24) == 0).Select(p => string.Create(ci, $"{p.X:0.000},{p.Y:0.000}"))));
