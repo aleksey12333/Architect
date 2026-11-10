@@ -332,8 +332,8 @@ public static partial class ExhaustiveDocumentAnalyzerService
             int end = flatLines.Count;
             for (int k = h + 1; k < heads.Count; k++)
                 if (heads[k].Level <= level) { end = heads[k].Line; break; }
-            if (level == 2)
-                for (int k = h + 1; k < heads.Count; k++) { end = Math.Min(end, heads[k].Line); break; }
+            // Подраздел заканчивается на следующем заголовке любого уровня.
+            if (level == 2 && h + 1 < heads.Count) end = Math.Min(end, heads[h + 1].Line);
             var slice = flatLines.Skip(line).Take(Math.Max(1, end - line)).ToList();
             string text = string.Join("\n", slice.Select(x => x.Line));
             int endPage = slice.Count > 0 ? slice[^1].Page : page;
