@@ -430,6 +430,13 @@ public sealed class UnifiedCloudAiClient : IAiProvider, IDisposable
         CallCompleted?.Invoke(this, rec);
     }
 
+    /// <summary>
+    /// Принимает ли модель параметр temperature. Живая проверка шлюза 10.11.2026: claude-sonnet-5-5 отвечает HTTP 502 на любой
+    /// запрос с temperature (на обоих маршрутах, со снимком и без) и 200 — без неё; прежний вывод «Sonnet не принимает снимки»
+    /// был следствием этого. Модели Claude получают температуру по умолчанию.
+    /// </summary>
+    public static bool AcceptsTemperature(string model) => !model.StartsWith("claude-", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Модель идёт нативным маршрутом Anthropic /v1/messages (claude-* при <see cref="UnifiedGatewayConfig.AnthropicNative"/>).</summary>
     public bool UsesAnthropicRoute(string model) => Config.AnthropicNative && model.StartsWith("claude-", StringComparison.OrdinalIgnoreCase);
 
@@ -459,7 +466,7 @@ public sealed class UnifiedCloudAiClient : IAiProvider, IDisposable
         var body = new Dictionary<string, object> { ["model"] = model, ["messages"] = messages, ["max_tokens"] = request.MaxTokens };
         // Рассуждающие модели GPT 5.x/6.x принимают только температуру по умолчанию; глубина рассуждений — reasoning_effort.
         bool gptReasoning = model.StartsWith("gpt-5", StringComparison.Ordinal) || model.StartsWith("gpt-6", StringComparison.Ordinal) || model.StartsWith('o');
-        if (!gptReasoning) body["temperature"] = request.Temperature;
+        if (!gptReasoning && AcceptsTemperature(model)) body["temperature"] = request.Temperature;
         else if (request.ReasoningEffort is { Length: > 0 } effort) body["reasoning_effort"] = effort;
         if (request.Stream)
         {
@@ -507,10 +514,8 @@ public sealed class UnifiedCloudAiClient : IAiProvider, IDisposable
             parts.Add(new { type = "text", text = text0 });
             messages.Add(new { role = m.Role == "assistant" ? "assistant" : "user", content = parts });
         }
-        var body = new Dictionary<string, object>
-        {
-            ["model"] = model, ["system"] = request.System, ["messages"] = messages, ["max_tokens"] = request.MaxTokens, ["temperature"] = request.Temperature
-        };
+        var body = new Dictionary<string, object> { ["model"] = model, ["system"] = request.System, ["messages"] = messages, ["max_tokens"] = request.MaxTokens };
+        if (AcceptsTemperature(model)) body["temperature"] = request.Temperature;
         if (request.Stream) body["stream"] = true;
         string root = Config.BaseUrl.TrimEnd('/');
         if (root.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)) root = root[..^3];

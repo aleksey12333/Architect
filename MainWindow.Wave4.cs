@@ -97,6 +97,7 @@ public sealed partial class MainWindow
         {
             if (e.PropertyName is nameof(MainViewModel.IsPhotoReferenceVisible) or nameof(MainViewModel.PhotoReference)) UpdatePhotoReferenceCard();
         };
+        InitializeWave5();
 #if DEBUG
         InitializeWave4Debug();
 #endif

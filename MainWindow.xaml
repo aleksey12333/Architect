@@ -185,6 +185,10 @@
                                 <MenuFlyoutItem Tag="dxf3d" Click="OnOpenMenuClick" Text="{x:Bind L.T('OpenDxf3D', L.Language), Mode=OneWay}">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
+                                <MenuFlyoutSeparator />
+                                <MenuFlyoutItem Click="OnOpenGpzuClick" Text="{x:Bind L.T('W5MenuOpen', L.Language), Mode=OneWay}">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE707;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
                             </MenuFlyout>
                         </Button.Flyout>
                     </Button>

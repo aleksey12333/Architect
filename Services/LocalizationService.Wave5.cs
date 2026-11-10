@@ -1,0 +1,73 @@
+namespace AIArchitectStudio.Services;
+
+/// <summary>
+/// Строки Волны 5: студия «Градостроительный план (ГПЗУ) и охранные зоны», проверка посадки, экспертиза, выпуск листа
+/// (отдельный словарь, общий поиск — <see cref="LocalizationService.Get(string)"/>; ключи W5*).
+/// </summary>
+public sealed partial class LocalizationService
+{
+    private static readonly Dictionary<string, (string Ru, string En)> Wave5Strings = new()
+    {
+        ["W5MenuOpen"] = ("Градостроительный план (ГПЗУ) и охранные зоны…", "Urban planning permit (GPZU) and protection zones…"),
+        ["W5StudioTitle"] = ("Градостроительный план (ГПЗУ) и охранные зоны", "Urban planning permit (GPZU) and protection zones"),
+        ["W5StudioSubtitle"] = ("Границы участка по координатам МСК, регламент, ЗОУИТ и подзоны ПАТ, коридоры сетей топосъёмки, проверка посадки",
+            "Parcel boundary by local grid coordinates, zoning, restricted zones and airfield subzones, utility corridors, placement check"),
+        ["W5Load"] = ("Загрузить PDF / DWG / CSV", "Load PDF / DWG / CSV"),
+        ["W5Sheet"] = ("Выпустить чертёж ГПЗУ / ПЗУ по ГОСТ (PDF / DXF)", "Issue GPZU / site plan sheet (PDF / DXF)"),
+        ["W5Build"] = ("Построить участок и охранные зоны в 3D-сцене", "Build the parcel and protection zones in the 3D scene"),
+        ["W5EmptyTitle"] = ("Документы не загружены", "No documents loaded"),
+        ["W5EmptyHint"] = ("Загрузите ГПЗУ (PDF с текстовым слоем, XML, JSON, TXT/CSV с координатами) и топосъёмку ИГДИ (DWG/DXF). Координаты читаются из таблиц Приложения № 1, сети — со слоёв чертежа.",
+            "Load the GPZU (PDF with a text layer, XML, JSON, TXT/CSV with coordinates) and the survey (DWG/DXF). Coordinates come from the Appendix 1 tables, utilities from drawing layers."),
+        ["W5LoadDemo"] = ("Открыть демонстрационный ГПЗУ и топосъёмку", "Open the demo GPZU and survey"),
+        ["W5StatusEmpty"] = ("Нет участка", "No parcel"),
+        ["W5Tables"] = ("таблиц", "tables"),
+        ["W5ZonesCount"] = ("зон", "zones"),
+        ["W5Networks"] = ("трасс", "utility runs"),
+        ["W5Elevations"] = ("отметок", "spot heights"),
+        ["W5NoTopo"] = ("топосъёмка не загружена", "no survey loaded"),
+        ["W5Passport"] = ("Кадастровый паспорт", "Cadastral passport"),
+        ["W5AreaDoc"] = ("Площадь по ГПЗУ", "Area per GPZU"),
+        ["W5AreaGauss"] = ("Площадь по координатам (Гаусс)", "Area by coordinates (Gauss)"),
+        ["W5AreaDelta"] = ("Расхождение", "Difference"),
+        ["W5PointsCount"] = ("Характерных точек", "Boundary points"),
+        ["W5AreaMatch"] = ("Площадь совпадает с паспортом (округление до 1 м²)", "Area matches the passport (rounded to 1 m²)"),
+        ["W5AreaMismatch"] = ("Площадь по координатам расходится с паспортом", "Coordinate area differs from the passport"),
+        ["W5Regulation"] = ("Градостроительный регламент", "Zoning regulation"),
+        ["W5Subzone"] = ("Подзона", "Subzone"),
+        ["W5MaxLiving"] = ("Жилых помещений, не более", "Residential area, max"),
+        ["W5MinParking"] = ("Машино-мест, не менее", "Parking places, min"),
+        ["W5Places"] = ("мест", "places"),
+        ["W5Ceiling"] = ("Ограничение высоты ПАТ", "Airfield height limit"),
+        ["W5Layers"] = ("Слои и охранные зоны", "Layers and protection zones"),
+        ["W5Boundary"] = ("Граница участка", "Parcel boundary"),
+        ["W5BoundaryHint"] = ("кобальт, поребрик и пины точек", "cobalt curb and point pins"),
+        ["W5Expl"] = ("экспликация, п. {0}", "legend item {0}"),
+        ["W5Existing"] = ("Существующие ОКС: {0}", "Existing buildings: {0}"),
+        ["W5ExistingHint"] = ("раздел 3.1 ГПЗУ и здания топосъёмки", "GPZU section 3.1 and surveyed buildings"),
+        ["W5ExistingShort"] = ("Существующие ОКС", "Existing buildings"),
+        ["W5CeilingLayer"] = ("Потолок высоты приаэродромной территории", "Airfield height ceiling"),
+        ["W5Coordinates"] = ("Ведомость координат", "Coordinate schedule"),
+        ["W5More"] = ("… и ещё {0} точек", "… and {0} more points"),
+        ["W5NoCoordinates"] = ("Координаты зоны в документе не приведены (сведения ЕГРН).", "Zone coordinates are not given in the document (state register)."),
+        ["W5Compliance"] = ("Проверка посадки", "Placement check"),
+        ["W5Passed"] = ("соответствует ГПЗУ", "complies with the GPZU"),
+        ["W5Failed"] = ("нарушений: {0}", "violations: {0}"),
+        ["W5Violation"] = ("нарушение", "violation"),
+        ["W5Expertise"] = ("Экспертиза ГПЗУ через модель", "GPZU review by model"),
+        ["W5ExpertiseTitle"] = ("Экспертиза ГПЗУ:", "GPZU review:"),
+        ["W5ExpertiseRunning"] = ("Модель изучает регламент, зоны и итоги проверки…", "The model is reviewing the regulation, zones and check results…"),
+        ["W5ExpertiseOffline"] = ("Облачный сервис недоступен — заключение ядра расчётов", "Cloud service unavailable — analysis core conclusion"),
+        ["W5North"] = ("СЕВЕР", "NORTH"),
+        ["W5Legend"] = ("Условные обозначения", "Legend"),
+        ["W5Allowed"] = ("Место допустимого размещения ОКС", "Permitted building area"),
+        ["W5LegendZouit"] = ("ЗОУИТ и подзоны ПАТ: {0}", "Restricted zones and subzones: {0}"),
+        ["W5Reading"] = ("Чтение документов…", "Reading documents…"),
+        ["W5ReadFailed"] = ("Не удалось прочитать файл", "Could not read the file"),
+        ["W5NoDemo"] = ("Демонстрационный комплект DemoKit/GPZU не найден рядом с программой", "Demo kit DemoKit/GPZU was not found next to the program"),
+        ["W5SheetDone"] = ("Чертёж выпущен", "Sheet issued"),
+        ["W5BuiltTitle"] = ("Участок ГПЗУ и охранные зоны построены", "GPZU parcel and protection zones built"),
+        ["W5Points"] = ("точек", "points"),
+        ["W5Engine"] = ("Ядро расчётов · ГПЗУ", "Analysis core · GPZU"),
+        ["W5UndoName"] = ("Участок ГПЗУ {0} и охранные зоны", "GPZU parcel {0} and protection zones")
+    };
+}

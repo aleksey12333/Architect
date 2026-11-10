@@ -49,6 +49,8 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageReference Include="LLamaSharp" Version="0.27.0" />
+    <!-- Волна 5: чтение топосъёмки DWG R2000…R2018 / DXF (MIT). -->
+    <PackageReference Include="ACadSharp" Version="3.8.35" />
     <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
     <PackageReference Include="LLamaSharp.Backend.Vulkan.Windows" Version="0.27.0" />
   </ItemGroup>

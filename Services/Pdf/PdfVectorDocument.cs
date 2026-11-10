@@ -262,6 +262,18 @@ public sealed class PdfVectorPage
 
     public void FillGray(double g) => _ops.Append(F(g)).Append(" g\n");
 
+    /// <summary>Отсечение последующего рисования прямоугольником (до Restore) — поле чертежа.</summary>
+    public void ClipRect(double x, double y, double w, double h) =>
+        _ops.Append(F(x)).Append(' ').Append(F(y)).Append(' ').Append(F(w)).Append(' ').Append(F(h)).Append(" re W n\n");
+
+    /// <summary>Цвет линий RGB (0…255) — цветные зоны листов ГПЗУ.</summary>
+    public void StrokeRgb(byte r, byte g, byte b) =>
+        _ops.Append(F(r / 255.0)).Append(' ').Append(F(g / 255.0)).Append(' ').Append(F(b / 255.0)).Append(" RG\n");
+
+    /// <summary>Цвет заливки и текста RGB (0…255).</summary>
+    public void FillRgb(byte r, byte g, byte b) =>
+        _ops.Append(F(r / 255.0)).Append(' ').Append(F(g / 255.0)).Append(' ').Append(F(b / 255.0)).Append(" rg\n");
+
     public void Line(double x1, double y1, double x2, double y2) =>
         _ops.Append(F(x1)).Append(' ').Append(F(y1)).Append(" m ").Append(F(x2)).Append(' ').Append(F(y2)).Append(" l S\n");
 

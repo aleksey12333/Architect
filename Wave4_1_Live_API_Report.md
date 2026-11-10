@@ -36,11 +36,13 @@
 
 ## Новое, найденное при закрытии волны
 
-- **Sonnet 5.5 принимает снимки нативным маршрутом Anthropic.** Живая проба 10.11.2026: `POST /api/llm/v1/messages`
-  (`x-api-key`, `Authorization: Bearer`, `anthropic-version: 2023-06-01`) со снимком 64 × 64 — ответ за 24 с, верное
-  описание, токены 36 → 49. В `UnifiedCloudAiClient` модели `claude-*` при `UnifiedGatewayConfig.AnthropicNative`
-  (шлюз lachuga.shop) идут этим маршрутом (поток SSE `content_block_delta`, `thinking_delta`, токены из `message_start` /
-  `message_delta`); OpenAI-совместимый маршрут остаётся для GPT/Gemini и для заглушек автотеста.
+- **Настоящая причина отказов Sonnet 5.5 — параметр `temperature`, а не снимок.** Живые пробы 10.11.2026: со снимком и
+  без `temperature` Sonnet отвечает 200 на обоих маршрутах (OpenAI `/v1/chat/completions` — 9 с, «белый квадрат внутри
+  синего»; нативный `/v1/messages` — 24 с); тот же запрос с `temperature` 0.1/0.2 — 502 на обоих маршрутах, со снимком и без.
+  Клиент больше не передаёт `temperature` моделям `claude-*` (`UnifiedCloudAiClient.AcceptsTemperature`); модели `claude-*`
+  на шлюзе «Лачуга» идут нативным маршрутом Anthropic (поток SSE `content_block_delta`, токены из `message_start` /
+  `message_delta`). Повторный прогон 5 снимков с Sonnet не выполнялся — столбцы «Sonnet → Luna» в таблице выше отражают
+  поведение до исправления.
 - Автоподхват ключа (часть 1.1 Волны 5): `LACHUGA_API_KEY` / `AIA_LIVE_API_KEY` процесса → `HKCU\Environment\LACHUGA_API_KEY`
   → `~/.claude/settings.json` (только если там `ANTHROPIC_BASE_URL` того же шлюза — ключ другого сервиса на шлюз не уходит).
   Ключ нигде не сохраняется; в автотесте общий клиент создаётся только по явным `AIA_LIVE_*`.

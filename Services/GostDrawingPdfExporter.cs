@@ -87,7 +87,7 @@ public sealed record SectionOcclusion(int BeyondSegments, int VisibleSegments, i
 /// стены, заштрихованные сечения колонн К1…, балки Б1…, плиты и перечёркнутые отверстия, на разрезе — высотные отметки.
 /// Линии по ГОСТ 2.303: основная 0.5 мм, тонкая 0.18 мм, осевая — штрихпунктирная тонкая.
 /// </summary>
-public sealed class GostDrawingPdfExporter
+public sealed partial class GostDrawingPdfExporter
 {
     private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
 

@@ -393,6 +393,10 @@ public static partial class CadSelfTestService
         failures += await CheckWave4Async(directory, report);
         report.AppendLine("Волна 4.1 — сложные снимки, перспектива, облачный шлюз и двухходовой протокол:");
         failures += await CheckWave41Async(report);
+
+        // ── Волна 5: ГПЗУ, границы участка МСК, ЗОУИТ и подзоны ПАТ, коридоры сетей топосъёмки, проверка посадки, лист ГПЗУ.
+        report.AppendLine().AppendLine("═══ Волна 5: ГПЗУ и охранные зоны — 19 точек МСК-66, ЗОУИТ и подзоны ПАТ, сети ИГДИ (DWG), участок в сцене одним шагом, проверка посадки, лист ГПЗУ ═══");
+        failures += await CheckWave5Async(directory, report);
         ReinforcementCalculator.StrictMinimum = strictMinimum;
 
         report.Insert(0, failures == 0 ? "ИТОГ: УСПЕХ — расхождений нет\n\n" : $"ИТОГ: ОШИБОК {failures}\n\n");

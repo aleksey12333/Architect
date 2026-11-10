@@ -437,7 +437,11 @@ public sealed partial class SceneStateService : ObservableObject, ITransactionDo
         if (recordUndo && !clearHistory) PushUndo("Новая сцена");
         ClearElements();
         // Новый документ (без истории) — новые этажи: этажи прежнего проекта с тем же именем постройки не наследуются.
-        if (clearHistory) ResetLevels();
+        if (clearHistory)
+        {
+            ResetLevels();
+            SetSitePlan(null);
+        }
         BuildingGroups.Clear();
         foreach (var g in groups) BuildingGroups.Add(g);
         var groupIds = BuildingGroups.Select(g => g.Id).ToHashSet();

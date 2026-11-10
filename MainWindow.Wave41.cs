@@ -69,6 +69,7 @@ public sealed partial class MainWindow
 
     private void InitializeWave41Debug()
     {
+        InitializeWave5Debug();
         // AIA_DEBUG_WAVE41TEST=папка — только проверки волны 4.1 (wave41.txt), выход при EXIT=1.
         if (Environment.GetEnvironmentVariable("AIA_DEBUG_WAVE41TEST") is { Length: > 0 } testDir)
             RootGrid.Loaded += async (_, _) =>

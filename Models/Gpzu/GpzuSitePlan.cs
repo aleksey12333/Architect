@@ -1,0 +1,58 @@
+namespace AIArchitectStudio.Models.Gpzu;
+
+/// <summary>Точка плана сцены (метры): X — восток, Z — юг (север плана — −Z, как у Солнца и осей).</summary>
+public readonly record struct SitePoint(double X, double Z);
+
+/// <summary>Сторона границы участка: номера точек, длина, середина (для подписи) и дирекционный угол.</summary>
+public sealed record SiteSegment(string From, string To, double Length, SitePoint Mid, double Bearing);
+
+/// <summary>Зона в координатах сцены: исходная зона ГПЗУ/топосъёмки, контур, оси трассы, полоса коридора по сегментам.</summary>
+public sealed record SiteZone(GpzuZone Zone, IReadOnlyList<SitePoint> Polygon, IReadOnlyList<IReadOnlyList<SitePoint>> Lines,
+    IReadOnlyList<IReadOnlyList<SitePoint>> Corridor, int Order)
+{
+    public string Id => Zone.Id;
+}
+
+/// <summary>Существующий объект (ОКС из ГПЗУ с контуром или здание топосъёмки): номер, подпись, контур, высота.</summary>
+public sealed record SiteObject(int Number, string Label, IReadOnlyList<SitePoint> Footprint, double Height);
+
+/// <summary>
+/// Участок ГПЗУ, перенесённый в сцену: начало координат — центроид контура (X₀, Y₀) в МСК; восток → +X сцены, север → −Z.
+/// Неизменяемый: шаг журнала «Участок ГПЗУ и охранные зоны» хранит ссылку на прежний и новый план.
+/// </summary>
+public sealed class GpzuSitePlan
+{
+    public required GpzuDocument Document { get; init; }
+    public TopoSurvey? Topo { get; init; }
+
+    /// <summary>Начало координат сцены в МСК (X — север, Y — восток).</summary>
+    public double OriginX { get; init; }
+    public double OriginY { get; init; }
+
+    public required IReadOnlyList<SitePoint> Boundary { get; init; }
+    public required IReadOnlyList<string> PointNumbers { get; init; }
+    public required IReadOnlyList<SiteSegment> Segments { get; init; }
+    public required IReadOnlyList<SiteZone> Zones { get; init; }
+    public required IReadOnlyList<SiteObject> Existing { get; init; }
+
+    /// <summary>Отметка земли участка, м БС (0 — неизвестна).</summary>
+    public double GroundElevation { get; init; }
+
+    /// <summary>Высота плоскости ограничения над землёй, м (Hабс − отметка земли); null — ограничения нет или отметка неизвестна.</summary>
+    public double? CeilingHeight { get; init; }
+
+    /// <summary>Абсолютная отметка потолка, м БС.</summary>
+    public double? CeilingAbs { get; init; }
+
+    public double Area => Document.GaussArea;
+
+    /// <summary>Габарит контура в сцене.</summary>
+    public (double MinX, double MaxX, double MinZ, double MaxZ) Bounds =>
+        (Boundary.Min(p => p.X), Boundary.Max(p => p.X), Boundary.Min(p => p.Z), Boundary.Max(p => p.Z));
+
+    /// <summary>Перевод точки МСК в сцену.</summary>
+    public SitePoint ToScene(double x, double y) => new(y - OriginY, -(x - OriginX));
+
+    /// <summary>Обратный перевод: сцена → МСК (X — север, Y — восток).</summary>
+    public (double X, double Y) ToGeo(double sceneX, double sceneZ) => (OriginX - sceneZ, OriginY + sceneX);
+}

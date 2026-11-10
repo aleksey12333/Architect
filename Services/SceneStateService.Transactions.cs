@@ -1,4 +1,4 @@
-using AIArchitectStudio.Models;
+﻿using AIArchitectStudio.Models;
 using AIArchitectStudio.Models.Transactions;
 
 namespace AIArchitectStudio.Services;
@@ -303,7 +303,8 @@ public sealed partial class SceneStateService
         bool groups = !Same(was.Groups, now.Groups, SameGroup);
         bool axes = !Same(was.Axes, now.Axes, SameAxis);
         bool dimensions = !Same(was.Dimensions, now.Dimensions, SameDimension);
-        return groups || axes || dimensions ? new DocumentStateChange(was, now, groups, axes, dimensions) : null;
+        bool site = !ReferenceEquals(was.Site, now.Site);
+        return groups || axes || dimensions || site ? new DocumentStateChange(was, now, groups, axes, dimensions, site) : null;
     }
 
     object ITransactionDocument.CaptureSelection() =>
@@ -322,13 +323,17 @@ public sealed partial class SceneStateService
         public required (BuildingGroup Item, BuildingGroup Values)[] Groups { get; init; }
         public required (StructuralGridAxis Item, StructuralGridAxis Values)[] Axes { get; init; }
         public required (PinnedDimension Item, PinnedDimension Values)[] Dimensions { get; init; }
+
+        /// <summary>Участок ГПЗУ (неизменяемый план — хранится ссылка).</summary>
+        public Models.Gpzu.GpzuSitePlan? Site { get; init; }
     }
 
     private DocumentState CaptureDocumentState() => new()
     {
         Groups = BuildingGroups.Select(g => (g, g.Clone())).ToArray(),
         Axes = GridAxes.Select(a => (a, a.Clone())).ToArray(),
-        Dimensions = PinnedDimensions.Select(d => (d, d.Clone())).ToArray()
+        Dimensions = PinnedDimensions.Select(d => (d, d.Clone())).ToArray(),
+        Site = SitePlan
     };
 
     private static bool Same<T>((T Item, T Values)[] a, (T Item, T Values)[] b, Func<T, T, bool> sameValues) where T : class
@@ -350,8 +355,9 @@ public sealed partial class SceneStateService
         a.Id == b.Id && a.Label == b.Label && a.Start.AsSpan().SequenceEqual(b.Start) && a.End.AsSpan().SequenceEqual(b.End);
 
     /// <summary>Возвращает постройки, оси или размеры к состоянию: значения копируются в те же объекты, порядок — как в снимке.</summary>
-    private void RestoreDocumentState(DocumentState state, bool groups, bool axes, bool dimensions)
+    private void RestoreDocumentState(DocumentState state, bool groups, bool axes, bool dimensions, bool site = false)
     {
+        if (site) SetSitePlan(state.Site);
         if (groups)
         {
             foreach (var (item, v) in state.Groups)
@@ -394,15 +400,15 @@ public sealed partial class SceneStateService
     }
 
     /// <summary>Изменение построек, осей или закреплённых размеров за шаг (сравнение снимка при открытии с состоянием при закрытии).</summary>
-    private sealed class DocumentStateChange(DocumentState before, DocumentState after, bool groups, bool axes, bool dimensions) : IElementChange
+    private sealed class DocumentStateChange(DocumentState before, DocumentState after, bool groups, bool axes, bool dimensions, bool site = false) : IElementChange
     {
         public ArchitecturalElement? Element => null;
         public bool GroupsChanged => groups;
 
-        public void Undo(ITransactionDocument document) => ((SceneStateService)document).RestoreDocumentState(before, groups, axes, dimensions);
+        public void Undo(ITransactionDocument document) => ((SceneStateService)document).RestoreDocumentState(before, groups, axes, dimensions, site);
 
-        public void Redo(ITransactionDocument document) => ((SceneStateService)document).RestoreDocumentState(after, groups, axes, dimensions);
+        public void Redo(ITransactionDocument document) => ((SceneStateService)document).RestoreDocumentState(after, groups, axes, dimensions, site);
 
-        public override string ToString() => $"документ:{(groups ? " постройки" : "")}{(axes ? " оси" : "")}{(dimensions ? " размеры" : "")}";
+        public override string ToString() => $"документ:{(groups ? " постройки" : "")}{(axes ? " оси" : "")}{(dimensions ? " размеры" : "")}{(site ? " участок ГПЗУ" : "")}";
     }
 }

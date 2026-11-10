@@ -235,6 +235,7 @@ public sealed partial class Viewport3DControl : UserControl
         _viewport.Items.Add(_gridMajor);
         _viewport.Items.Add(_shadowGroup);
         _viewport.Items.Add(_axesGroup);
+        _viewport.Items.Add(_siteGroup);
         _viewport.Items.Add(_underlayGroup);
         _viewport.Items.Add(_elementsGroup);
         _viewport.Items.Add(_stressGroup);
@@ -264,6 +265,7 @@ public sealed partial class Viewport3DControl : UserControl
 
         ApplyTheme(_theme!.Current);
         RebuildScene();
+        RebuildSite();
         ResetCamera();
 
         // Начальный фокус — на 3D-холст (без рамки клавиатурного фокуса на первой кнопке бара).
@@ -293,6 +295,8 @@ public sealed partial class Viewport3DControl : UserControl
         _vm.StructuralOverlayChanged += OnStructuralOverlayChanged;
         _scene.SelectionChanged += OnSelectionChanged;
         _scene.DimensionsChanged += OnDimensionsChanged;
+        _scene.SitePlanChanged += (_, _) => QueueSiteRebuild();
+        if (_vm is not null) _vm.SiteLayersChanged += (_, _) => QueueSiteRebuild();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -428,6 +432,7 @@ public sealed partial class Viewport3DControl : UserControl
     {
         ApplyTheme(theme);
         QueueRebarRebuild();
+        QueueSiteRebuild();
     }
 
     /// <summary>
